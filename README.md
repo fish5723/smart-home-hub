@@ -174,53 +174,6 @@ smart-home-hub/
 
 ---
 
-## 10. GitHub 发布前检查
-
-源码准备公开发布；首次 push 前按下面顺序检查一次：
-
-```bash
-# 1) 确认待提交文件与大文件
-git status --short
-git ls-files | sort
-
-# 2) 扫描常见凭据（只允许看到空配置项和文档占位符）
-git grep -n -I -E '(api[_-]?key|token|secret|password|passwd|authorization|bearer)' -- \
-  ':!firmware/**/managed_components/**' ':!tools/SDL2-2.30.10/**'
-
-# 3) 跑宿主机回归测试
-cmake -S tests/f103-proto -B tests/f103-proto/build -G Ninja
-cmake --build tests/f103-proto/build
-ctest --test-dir tests/f103-proto/build --output-on-failure
-
-cmake -S tests/jwp-reader -B tests/jwp-reader/build -G Ninja
-cmake --build tests/jwp-reader/build
-ctest --test-dir tests/jwp-reader/build --output-on-failure
-
-cmake -S tests/rule-engine -B tests/rule-engine/build -G Ninja
-cmake --build tests/rule-engine/build
-ctest --test-dir tests/rule-engine/build --output-on-failure
-
-cmake -S tests/wifi-credentials -B tests/wifi-credentials/build -G Ninja
-cmake --build tests/wifi-credentials/build
-ctest --test-dir tests/wifi-credentials/build --output-on-failure
-
-cmake -S tests/ota-manifest -B tests/ota-manifest/build -G Ninja
-cmake --build tests/ota-manifest/build
-ctest --test-dir tests/ota-manifest/build --output-on-failure
-
-cmake -S tests/c3-credentials -B tests/c3-credentials/build -G Ninja
-cmake --build tests/c3-credentials/build
-ctest --test-dir tests/c3-credentials/build --output-on-failure
-```
-
-凭据规则：Wi-Fi、MQTT、天气服务、LLM/Vision 和 OTA 私钥只放在本机
-`sdkconfig`、NVS 或 `tools/ota_keys/`；仓库只保留空的 `sdkconfig.defaults`、
-公有 CA 证书和示例配置。若凭据曾经提交过，即使现在删除，也要在 push 前轮换并清理历史。
-
-当前明确不应作为新增提交的本地产物：`firmware/*/sdkconfig`、
-`firmware/*/build/`、`firmware/*/managed_components/`、`simulator/build/`、
-`simulator/*out.txt`、`tools/ota_keys/`。现有已跟踪 SDL2 文件（含压缩包）保留；新下载的其他归档不会自动纳入 Git。
-
 ### 主机测试结果
 
 | 测试 | 结果 |
