@@ -1,0 +1,45 @@
+# ── 阶段 6 最小验证配置 ──
+# 目标：NimBLE GATT Server 与 Wi-Fi STA + MQTT 同时工作（同一 2.4G 射频，走软件共存）
+
+# 4MB Flash（C3 SuperMini 常见规格）
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# ── 蓝牙：只用 NimBLE 外设角色 ──
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
+
+# ── Wi-Fi 与 BLE 共存（单射频分时）──
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
+
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_FREERTOS_HZ=1000
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
+
+# 阶段 6 验收 8：Light-sleep 下 BLE 保持
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_PM_PROFILING=y
+# CONFIG_PM_TRACE=y  # 仅调试时打开，会持续打印 sleep/wake
+
+# BLE 控制器 modem sleep（IDF 默认关闭，会让 light sleep 期间 BLE 掉线）
+# 本板只有 40MHz 主晶振，Y1 32.768kHz 未贴装（boot 日志 "32 kHz XTAL not found"），
+# 因此 RTC 慢时钟保持内部 RC，BLE 低功耗时钟用 Main XTAL（40MHz，文档支持与 light sleep 共存）。
+CONFIG_BT_CTRL_MODEM_SLEEP=y
+CONFIG_BT_CTRL_MODEM_SLEEP_MODE_1=y
+CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y
+# 关键：选了 Main XTAL 后，若不开这一项，控制器会在 esp_bt_controller_init() 里
+# 创建名为 "btLS" 的 NO_LIGHT_SLEEP 锁并永久持有（源码 bt.c:1739-1741），
+# 系统将永远进不了 light sleep（PM 统计 SLEEP=0%、light_sleep_counts=0）。
+CONFIG_BT_CTRL_MAIN_XTAL_PU_DURING_LIGHT_SLEEP=y
+
+# ── 阶段 6 收尾（ADR-027）──
+# keepalive 12s → broker 在 1.5x12 ≈ 18s 后判掉线并发 LWT（旧值 30s 约 45s）
+CONFIG_C3_MQTT_KEEPALIVE_S=12
+# mqtts:// 用自签 CA 校验服务器证书；CA 证书在 certs/ca.pem（tools/gen_mqtt_certs.py 生成）
+CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE_PATH="certs"

@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(c3_credentials_test C)
+set(CMAKE_C_STANDARD 11)
+add_executable(test_c3_credentials test_c3_credentials.c)
+target_include_directories(test_c3_credentials PRIVATE ../../firmware/c3-node/main)
+enable_testing()
+add_test(NAME c3_credentials COMMAND test_c3_credentials)

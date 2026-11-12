@@ -1,0 +1,31 @@
+menu "Smart Home Hub — Protocol (P4↔F103)"
+
+    config SMART_HOME_PROTO_UART_NUM
+        int "UART port number for F103 communication"
+        range 0 2
+        default 2
+        help
+            UART port used to communicate with F103.
+            UART0 = console/debug (USB), UART1/UART2 = available.
+
+    config SMART_HOME_PROTO_UART_TX
+        int "UART TX pin (P4 → F103 PA10)"
+        range 0 54
+        default 46
+        help
+            GPIO pin connected to F103 USART1 RX (PA10).
+
+    config SMART_HOME_PROTO_UART_RX
+        int "UART RX pin (P4 ← F103 PA9)"
+        range 0 54
+        default 47
+        help
+            GPIO pin connected to F103 USART1 TX (PA9).
+
+    config SMART_HOME_PROTO_UART_BAUD
+        int "Baud rate"
+        default 115200
+        help
+            Must match F103 side USART1 baud rate.
+
+endmenu

@@ -1,0 +1,63 @@
+menu "C3 Node (阶段 6 验证)"
+
+    config C3_BLE_ENABLE
+        bool "Enable BLE GATT server"
+        default y
+        help
+            关闭后只跑 Wi-Fi/MQTT，用于做"BLE 是否干扰 Wi-Fi 关联"的对照实验。
+
+    config C3_WIFI_SSID
+        string "Wi-Fi SSID"
+        default ""
+        help
+            留空则只跑 BLE，不连 Wi-Fi（用于单独验证 BLE 外设）。
+
+    config C3_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+
+    config C3_WIFI_TX_POWER_QDBM
+        int "Wi-Fi max TX power (0.25 dBm unit)"
+        range 8 84
+        default 34
+        help
+            C3 SuperMini 的板载天线实测驻波比约 5.8（严重失配），
+            20dBm 满功率时反射与失真反而让 AP 收不到认证帧。
+            社区实测降到 8.5dBm 左右可正常关联。
+            默认 34 = 8.5dBm；恢复满功率填 80。
+
+    config C3_MQTT_URI
+        string "MQTT broker URI"
+        default "mqtts://10.44.209.2:8884"
+        help
+            mqtts:// 走 TLS（服务器证书由项目内 certs/ca.pem 校验，见 tools/gen_mqtt_certs.py）；
+            明文 mqtt:// 仍可用，用于回退排查。
+
+    config C3_MQTT_PUB_TOPIC
+        string "MQTT publish topic (raw frame, debug)"
+        default "c3/test/link"
+
+    config C3_MQTT_NODE_ID
+        string "MQTT node id (smart_home/<node>/...)"
+        default "c3node"
+        help
+            与 P4 面板 / HA 的 node_id 对应；topic 遵循 docs/17：
+            smart_home/<node_id>/availability 与 smart_home/<node_id>/state/<obj_id>。
+
+    config C3_MQTT_KEEPALIVE_S
+        int "MQTT keepalive (seconds)"
+        default 12
+        range 5 300
+        help
+            broker 在 1.5 x keepalive 收不到 PINGREQ 时判定断开并发布 LWT，
+            因此 availability=offline 的延迟约为 1.5 x 本值（30s -> 约 45s，12s -> 约 18s）。
+            下调可让掉线提示更快，代价是 PINGREQ 更频繁（light sleep 唤醒次数增加）。
+
+    config C3_PM_LIGHT_SLEEP
+        bool "Enable automatic light sleep (验收 8)"
+        default y
+        help
+            开 = esp_pm 自动 light sleep（省电，但 USB-Serial/JTAG 会掉线）。
+            关 = 仅 DFS，用于 A/B 对照：确认串口不可用是否由 light sleep 引起。
+
+endmenu

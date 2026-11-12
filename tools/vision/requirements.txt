@@ -1,0 +1,7 @@
+# PC 侧视觉基线（阶段七 P2）所需的最小依赖
+# 安装：python -m pip install -r tools/vision/requirements.txt
+numpy>=1.24
+onnxruntime>=1.17
+Pillow>=10.0
+psutil>=5.9
+requests>=2.31

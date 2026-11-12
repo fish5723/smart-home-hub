@@ -1,0 +1,28 @@
+## ─── WiFi 配置（通过 source 引入 main/Kconfig.projbuild） ───
+
+config SMART_HOME_WIFI_ENABLED
+    bool "Enable WiFi"
+    default y
+    help
+        Enable WiFi initialization and connectivity.
+
+config SMART_HOME_WIFI_AUTO_CONNECT
+    bool "Auto-connect to saved AP on boot"
+    default y
+    depends on SMART_HOME_WIFI_ENABLED
+    help
+        Automatically connect to the last used WiFi network on boot.
+
+config SMART_HOME_WIFI_SSID
+    string "Default WiFi SSID"
+    default ""
+    depends on SMART_HOME_WIFI_ENABLED && SMART_HOME_WIFI_AUTO_CONNECT
+    help
+        Default SSID to connect to. Can be overridden at runtime via NVS.
+
+config SMART_HOME_WIFI_PASSWORD
+    string "Default WiFi Password"
+    default ""
+    depends on SMART_HOME_WIFI_ENABLED && SMART_HOME_WIFI_AUTO_CONNECT
+    help
+        Default password for the WiFi network.

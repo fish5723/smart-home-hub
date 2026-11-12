@@ -1,0 +1,101 @@
+# ---- 通用 ----
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ---- ESP-IDF (P4 / C3) ----
+firmware/*/build/
+firmware/*/sdkconfig
+firmware/*/sdkconfig.old
+firmware/*/managed_components/
+firmware/*/dependencies.lock
+firmware/*/.cache/
+firmware/*/compile_commands.json
+
+# ---- STM32 / ARM GCC ----
+firmware/f103-node/build/
+firmware/f103-node/Debug/
+firmware/f103-node/Release/
+*.elf
+*.bin
+*.hex
+*.map
+*.o
+*.d
+*.su
+
+# ---- OTA 签名私钥（绝不入库；公钥在 Kconfig 默认值里）----
+tools/ota_keys/
+
+# ---- 大数据/二进制产物（日志、抓包、实测原始数据） ----
+docs/media/*.mp4
+docs/media/*.mov
+tools/*.csv
+tools/captures/
+hardware/*.stl
+hardware/*.3mf
+
+# ---- 但保留目录说明文件 ----
+!docs/media/README.md
+
+# ---- IDE / 编辑器本地状态（不应入库） ----
+**/.settings/
+**/.clangd
+**/.cache/clangd/
+**/compile_commands.json
+**/.idea/
+**/*.ioc.bak
+
+# ---- 注意：F103 侧的 Drivers/（STM32 HAL + CMSIS，75 个文件）目前【入库】 ----
+# 这是有意的例外：它与 smart_home.ioc 配对，保证工程可脱离 CubeMX 独立构建。
+# 若将来改为"依赖 CubeMX 重新生成"，在此处加一行 Drivers/ 并同步 docs/08-复用资产清单.md。
+tests/f103-proto/build/
+
+# ---- 模拟器本地产物（可由 CMake / headless 快照重新生成） ----
+simulator/build/
+simulator/*.png
+simulator/*.ppm
+simulator/*.json
+simulator/*.log
+simulator/*out.txt
+
+# ---- 本地前端依赖与误传参数文件 ----
+node_modules/
+.npm-cache/
+--detail-*
+--help
+
+# ---- 本地构建依赖与运行输出 ----
+# 保留现有已跟踪的 SDL2 文件；忽略后续下载的同类归档。
+tools/SDL2-devel-*.tar.gz
+simulator/*out.txt
+
+# ---- ESP-IDF 构建产物（每个固件工程只使用其 build/） ----
+firmware/*/build-*/
+firmware/*/build-v*/
+# ---- 宿主机单元测试的构建产物 ----
+tests/*/build/
+tests/**/Testing/
+firmware/tests/**/build/
+
+# ---- 本地规划/分享产物（.trae 工具生成，不入库）----
+.trae/
+.trae-html-share-packages/
+
+# ---- 本地发布审计快照（不影响源码提交） ----
+.release-audit/
+
+# ---- 待机壁纸大素材：不入库 ----
+# 仓库侧壁纸源放在根 ui/wallpaper/（9 场景 day/night + _02/_03 变体），单个 .jwp
+# 实测最大 82 MB、全量约 1.4 GB —— 属本地素材（自行拷到 SD 卡使用），不入库。
+# 仓库只保留极小样例 test/sample.jwp（18 KB / 3 帧）。转换脚本入库。
+# （旧规则 ui/assets/wallpaper/**、ui/assets/video/** 指向不存在的目录，已删除。）
+ui/wallpaper/**/*.jwp
+!ui/wallpaper/test/sample.jwp

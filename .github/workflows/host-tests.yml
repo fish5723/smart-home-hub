@@ -1,0 +1,20 @@
+name: Host tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  cmake-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run host tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suite in f103-proto jwp-reader rule-engine wifi-credentials ota-manifest c3-credentials; do
+            cmake -S "tests/$suite" -B "tests/$suite/build" -G Ninja
+            cmake --build "tests/$suite/build"
+            ctest --test-dir "tests/$suite/build" --output-on-failure
+          done

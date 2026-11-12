@@ -1,0 +1,10 @@
+# Name,      Type, SubType,  Offset,   Size,     Flags
+# 阶段八：16MB NOR Flash，双 OTA + coredump；assets 从 9900K 缩到 4928K。
+# 注意：OTA app 分区必须 64K 对齐，0x12000–0x20000 为不可用空隙。
+nvs,      data, nvs,      0x9000,   24K,
+phy_init, data, phy,      0xF000,   4K,
+otadata,  data, ota,      0x10000,  8K,
+ota_0,    app,  ota_0,    0x20000,  5632K,
+ota_1,    app,  ota_1,    0x5A0000, 5632K,
+coredump, data, coredump, 0xB20000, 64K,
+assets,   data, fat,      0xB30000, 4928K,

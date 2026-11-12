@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Smart Home Hub · 阶段四界面原型 v2（状态矩阵版）</title>
+<style>
+:root{
+  /* 暖纸色主题：对齐 ui_pages.c:44 实际口径 */
+  --rail:#20201E; --surface:#E9E5DC; --alt:#DED8CE; --ink:#262522;
+  --muted:#777269; --mdark:#AAA39A; --cream:#F3EFE7; --metal:#C69A59; --hair:#C9C1B5;
+  /* 待机层：对齐 standby_ui.c */
+  --s-bg:#0C0C0B; --s-card:#151514; --s-video:#243B5A; --s-ok:#9AD29A;
+  --danger:#EF4444; --warn:#F59E0B; --ok2:#22C55E;
+  /* 屏内字号档位：固件只有这 6 档 */
+  --f10:10px; --f12:12px; --f14:14px; --f18:18px; --f28:28px; --f48:48px;
+  --cjk:"Source Han Sans SC","Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif;
+  --latin:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#2b2b2b;color:#eee;display:flex;gap:20px;padding:20px;align-items:flex-start;font-family:var(--cjk)}
+/* ── 屏外控制面板（实机不存在） ── */
+.panel{width:360px;flex:0 0 360px;font-family:var(--latin);font-size:12px}
+.panel h1{font-size:14px;letter-spacing:.08em;margin-bottom:10px;color:#fff}
+.panel .grp{border:1px solid #4a4a4a;border-radius:10px;padding:10px;margin-bottom:12px}
+.panel .grp>b{display:block;font-size:11px;letter-spacing:.06em;color:#9ad29a;margin-bottom:8px}
+.panel button{background:#3a3a3a;color:#eee;border:1px solid #555;border-radius:6px;padding:6px 9px;margin:0 6px 6px 0;font:inherit;cursor:pointer}
+.panel button.on{background:#9ad29a;color:#111;border-color:#9ad29a}
+.panel table{border-collapse:collapse;width:100%;font-size:11px}
+.panel td,.panel th{border:1px solid #4a4a4a;padding:3px 5px;text-align:left;vertical-align:top}
+.panel th{background:#3a3a3a;color:#fff}
+.panel .zh{font-family:var(--cjk)}
+.glyphs{font-family:var(--cjk);font-size:13px;line-height:1.9;color:#ffd479;word-break:break-all}
+.note{color:#bbb;line-height:1.6}
+.note code{color:#ffd479}
+.todo{color:#ffb4b4;line-height:1.7}
+/* ── 设备屏 ── */
+.device{width:1024px;height:600px;border-radius:28px;overflow:hidden;position:relative;
+        background:var(--s-bg);box-shadow:0 0 0 1px #555}
+.screen{position:absolute;inset:0;overflow:hidden;font-family:var(--cjk)}
+/* 固件真实外壳（ui_pages.c:546）：rail(18,18,88,564) + 屏幕面板(106,18,900,564)；
+   页面内部坐标是【面板内】相对坐标，必须放进 .shell，否则会压到 rail。 */
+.shell{position:absolute;left:106px;top:18px;width:900px;height:564px;background:var(--surface);border-radius:18px;overflow:hidden}
+.eyebrow{font-family:var(--latin);font-size:var(--f10);letter-spacing:.14em;color:var(--muted)}
+.title{font-size:var(--f28);color:var(--ink);line-height:1.1}
+.sub{font-size:var(--f14);color:var(--muted);line-height:1.4}
+.tiny{font-size:var(--f12);color:var(--muted);font-family:var(--latin);letter-spacing:.1em}
+.rail{position:absolute;left:18px;top:18px;width:88px;height:564px;background:var(--rail);border-radius:18px}
+.rail .logo{position:absolute;left:26px;top:28px;font-family:var(--latin);font-size:var(--f10);letter-spacing:.12em;color:var(--cream)}
+.rail .no{position:absolute;left:25px;top:76px;font-family:var(--latin);font-size:var(--f12);color:var(--metal)}
+.rail .hr{position:absolute;left:25px;top:142px;width:35px;height:1px;background:#69645B}
+.rail .nav{position:absolute;left:20px;width:48px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.rail .nav.on{background:var(--rail)}
+.rail .nav svg{width:24px;height:24px;stroke:var(--muted);fill:none;stroke-width:1.6}
+.rail .nav.on svg{stroke:var(--metal)}
+.rail .dot{position:absolute;left:36px;top:532px;width:16px;height:16px;border-radius:8px;background:var(--rail);border:1px solid #69645B}
+.page,.subpage{position:absolute;left:0;top:0;width:900px;height:564px;display:none}
+.page.on,.subpage.on{display:block}
+.subpage{background:var(--surface)}
+.card{position:absolute;background:var(--alt);border-radius:12px}
+.card.dark{background:var(--ink)}
+.hair{position:absolute;height:1px;background:var(--hair)}
+.chip{position:absolute;height:94px;border-radius:12px;background:var(--alt);cursor:pointer;display:flex;align-items:center}
+.chip.on{background:var(--ink)}
+.chip .nm{position:absolute;left:24px;top:27px;font-size:var(--f18);color:var(--ink)}
+.chip.on .nm{color:var(--cream)}
+.chip .ds{position:absolute;left:24px;top:56px;font-size:var(--f14);color:var(--muted)}
+.chip.on .ds{color:var(--mdark)}
+.chip .st{position:absolute;right:20px;top:36px;font-size:var(--f18);color:var(--muted)}
+.chip.on .st{color:var(--metal)}
+/* 等级胶囊：优/良/中/差 与 紧急/警告 */
+.tier{position:absolute;padding:3px 10px;border-radius:8px;font-size:var(--f14);line-height:20px}
+.t-ok{background:rgba(34,197,94,.18);color:#1E6B3A;border:1px solid #22C55E}
+.t-mid{background:rgba(198,154,89,.20);color:#8A6420;border:1px solid var(--metal)}
+.t-bad{background:rgba(239,68,68,.16);color:#96231F;border:1px solid var(--danger)}
+.t-none{background:var(--alt);color:var(--muted);border:1px solid var(--hair)}
+/* 开关（视觉 44×24，命中区 44×44，与固件 TK_TOGGLE_* 一致） */
+.sw{position:absolute;width:44px;height:24px;border-radius:12px;background:var(--hair);cursor:pointer}
+.sw i{position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:10px;background:var(--surface);transition:left .12s}
+.sw.on{background:var(--metal)}
+.sw.on i{left:22px}
+.hit{position:absolute;width:44px;height:44px;cursor:pointer}
+/* 滑条（亮度/音量） */
+.slider{position:absolute;height:8px;border-radius:4px;background:var(--hair)}
+.slider i{position:absolute;left:0;top:0;height:8px;border-radius:4px;background:var(--metal)}
+.slider b{position:absolute;top:-10px;width:24px;height:24px;border-radius:12px;background:var(--ink)}
+.toast{position:absolute;left:380px;top:548px;width:264px;height:36px;border-radius:18px;background:var(--ink);
+       color:var(--cream);font-size:var(--f14);line-height:36px;text-align:center;opacity:0;transition:opacity .18s}
+.toast.show{opacity:1}
+.modal{position:absolute;inset:0;background:rgba(12,12,11,.75);display:none}
+.modal.show{display:block}
+.modal .box{position:absolute;left:282px;top:182px;width:560px;height:236px;background:var(--surface);border-radius:16px}
+.modal h3{position:absolute;left:30px;top:28px;font-size:var(--f28);color:var(--ink)}
+.modal .bd{position:absolute;left:30px;top:120px;width:500px;font-size:var(--f14);color:var(--ink);line-height:1.6}
+.modal button{position:absolute;top:178px;width:96px;height:44px;border-radius:22px;border:0;font:inherit;font-size:var(--f14);cursor:pointer;font-family:var(--cjk)}
+.modal .no{left:330px;background:var(--alt);color:var(--ink)}
+.modal .ok{left:438px;background:var(--ink);color:var(--cream)}
+/* ── 待机层（极简：时间 + 天气 + 温度；视频区不放信息） ── */
+.standby{position:absolute;inset:0;background:var(--s-bg);display:none}
+.standby.on{display:block}
+/* 媒体卡 / 视频窗口取直角，与固件一致。原因不是审美而是性能：圆角裁剪会让 LVGL
+   每帧为这块区域生成 mask，P4 上适配器 PPA 因此整块退回 CPU 软件混合 ——
+   壁纸实测 17fps，改直角后 30fps（凭据见 docs/16 §7.6）。不要改回圆角。 */
+.media{position:absolute;left:28px;top:18px;width:968px;height:564px;background:var(--s-card);border-radius:0}
+.video{position:absolute;left:16px;top:16px;width:936px;height:420px;background:var(--s-video);border-radius:0;overflow:hidden}
+.wp-sky{position:absolute;left:0;top:0;width:936px;height:250px;background:#3C5A78}
+.wp-mt{position:absolute;left:0;top:190px;width:936px;height:230px;background:#2E4157}
+.wp-sun{position:absolute;left:742px;top:52px;width:88px;height:88px;border-radius:44px;background:#E8D5A6}
+.footer{position:absolute;left:16px;top:450px;width:936px;height:66px;background:var(--s-card)}
+.ftime{position:absolute;left:6px;top:0;width:180px;height:56px;font-family:var(--latin);font-size:var(--f48);color:var(--cream);line-height:56px}
+.ficon{position:absolute;left:790px;top:9px;width:48px;height:48px;border:1px solid var(--cream);border-radius:24px}
+.ficon:after{content:"";position:absolute;left:14px;top:9px;width:6px;height:22px;background:var(--cream)}
+.fcond{position:absolute;left:700px;top:22px;width:76px;font-size:var(--f18);color:var(--mdark);text-align:right}
+.ftemp{position:absolute;left:838px;top:0;width:98px;height:56px;font-size:var(--f48);color:var(--cream);line-height:56px;text-align:right}
+/* 页脚小提示：只在告警进行中出现（不进视频区，按你的要求） */
+.fbadge{position:absolute;left:190px;top:22px;height:24px;padding:0 10px;border-radius:8px;display:none;
+        background:rgba(239,68,68,.14);border:1px solid var(--danger);color:#FFD9D9;font-size:var(--f14);line-height:22px}
+.fbadge.on{display:block}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ 屏外控制面板 ═══════════ -->
+<aside class="panel">
+  <h1>SMART HOME HUB · STAGE 4 PROTOTYPE v2</h1>
+
+  <div class="grp"><b>屏幕</b>
+    <button data-go="standby" class="on">待机层</button>
+    <button data-go="overview">概览</button>
+    <button data-go="environment">环境</button>
+    <button data-go="devices">设备</button>
+    <button data-go="automation">自动化</button>
+    <button data-go="alerts">告警</button>
+    <button data-go="settings">设置</button>
+    <button data-go="wifi">└ 网络连接</button>
+    <button data-go="display">└ 屏幕与声音</button>
+  </div>
+
+  <div class="grp"><b>语言</b>
+    <button id="lang-zh" class="on">中</button><button id="lang-en">EN</button>
+  </div>
+
+  <div class="grp"><b>链路（状态机三态）</b>
+    <button data-link="1" class="on">在线 UP</button>
+    <button data-link="2">降级 DEGRADED</button>
+    <button data-link="0">离线 DOWN</button>
+  </div>
+
+  <div class="grp"><b>传感器质量（SENSOR_REPORT.quality）</b>
+    <button data-q="0" class="on">有效 0</button><button data-q="1">预热中 1</button>
+    <button data-q="2">超量程 2</button><button data-q="3">故障 3</button>
+    <button data-q="4">陈旧 4</button>
+  </div>
+
+  <div class="grp"><b>告警状态（ALARM_EVENT 0x12）</b>
+    <button data-alarm="0" class="on">无告警</button>
+    <button data-alarm="1">气体超标</button>
+    <button data-alarm="2">已解除</button>
+  </div>
+
+  <div class="grp"><b>房间画像（环境页深色卡）</b>
+    <button data-prof="0" class="on">自动</button><button data-prof="1">舒适</button>
+    <button data-prof="2">偏干</button><button data-prof="3">偏湿</button>
+    <button data-prof="4">偏热</button><button data-prof="5">偏冷</button>
+    <button data-prof="6">数据不足</button>
+  </div>
+
+  <div class="grp"><b>状态词表（字段 × 数据状态 → 屏上文案）</b>
+    <table><thead><tr><th>字段</th><th>状态</th><th>屏上显示</th><th>数据来源</th></tr></thead>
+    <tbody id="matrix"></tbody></table>
+  </div>
+
+  <div class="grp"><b>上屏文案表（同一份 copy 表驱动）</b>
+    <table><thead><tr><th>key</th><th>中文</th><th>English</th></tr></thead><tbody id="copytable"></tbody></table>
+  </div>
+
+  <div class="grp"><b>新增汉字清单（相对现有字形）</b>
+    <div class="glyphs">久 义 优 做 停 健 先 分 前 原 反 口 均 复 完 容 密 小 尚 差 康 弱 当 急 恢 房 扫 描 提 擎 支 故 映 暂 概 求 没 沿 法 滚 烧 画 界 省 码 窗 紧 级 续 联 般 良 览 解 言 语 质 轮 较 输 返 进 通 都 醒 重 门 阈 陈 降 除 随 障 面 项 预</div>
+    <div class="note" style="margin-top:4px">共 <b>76</b> 个（脚本对比 <code>ui_pages.c</code> 296 字 ∪ <code>standby_ui.c</code> 186 字 = 391 字得出）。</div>
+    <div class="note" style="margin-top:6px">固件中文字形按 <code>ui_pages.c</code> 文案生成的子集；上表汉字需先跑
+      <code>tools/generate_runtime_fonts.mjs</code> 重生成 <code>fontcn*.bin</code>，否则实机缺字。</div>
+  </div>
+
+  <div class="grp"><b>LVGL 可行性 / 待定事项</b>
+    <div class="note">
+      · 纯色 + 圆角≤28 + 1px 发丝线；半透明用 <code>bg_opa</code>；无 blur/阴影/渐变<br>
+      · 等级胶囊 = 小圆角容器 + 1px border + 低透明度底色（可直接复刻）<br>
+      · 开关 = 44×24 圆角容器 + 24×24 圆角子对象（命中区 44×44，沿用 TK_TOGGLE_*）<br>
+      · 滑条 = <code>lv_slider</code>；折线图 = <code>lv_chart</code>（LINE，单序列 24 点）<br>
+      · 下级界面 = 同尺寸子容器覆盖 + 返回箭头（固件里是 pages[] 之外的第三个容器）<br>
+      · WiFi 密码输入：LVGL 需要 <code>lv_keyboard</code>（重）；更省的做法是复用现有「网页配网」通道<br>
+      · 语言开关：固件里是持久化设置（storage namespace），切换后所有 label 需重设文案
+    </div>
+    <div class="todo" style="margin-top:8px">
+      ⚠️ 待你拍板：① 自动化页保留但「添加规则」的**编辑入口与同步通道未定**（网页编辑 → P4 NVS 双槽，
+      协议里 <code>CONFIG_SET 0x31</code> 尚未实现）；② 语言开关放设备页（成本略高）还是收进设置页做全局项。
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════ 1024×600 设备屏 ═══════════ -->
+<main class="stage">
+<div class="device">
+<div class="screen" id="screen">
+
+  <nav class="rail">
+    <div class="logo">SH</div><div class="no">01</div><div class="hr"></div>
+    <div class="nav on" data-go="overview" style="top:168px"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg></div>
+    <div class="nav" data-go="environment" style="top:220px"><svg viewBox="0 0 24 24"><path d="M10 14V5a2 2 0 1 1 4 0v9a4 4 0 1 1-4 0z"/></svg></div>
+    <div class="nav" data-go="devices" style="top:272px"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div>
+    <div class="nav" data-go="automation" style="top:324px"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7"/><rect x="14" y="13" width="7" height="7"/><path d="M10 7.5h4v9"/></svg></div>
+    <div class="nav" data-go="alerts" style="top:376px"><svg viewBox="0 0 24 24"><path d="M12 4 2 21h20z"/><path d="M12 10v5M12 18h.01"/></svg></div>
+    <div class="nav" data-go="settings" style="top:428px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div>
+    <div class="dot"></div>
+  </nav>
+
+  <div class="shell">
+
+  <!-- ── 1. 概览 ── -->
+  <section class="page" data-page="overview">
+    <div class="eyebrow" style="position:absolute;left:36px;top:44px" data-t="ov_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:74px;width:500px" data-t="ov_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:116px;width:520px" id="linkline"></div>
+    <div class="tiny" style="position:absolute;left:760px;top:44px;width:140px" data-t="ov_nodes"></div>
+
+    <div class="card dark" style="left:36px;top:166px;width:292px;height:300px">
+      <div class="tiny" style="position:absolute;left:24px;top:34px;color:var(--mdark)" data-t="ov_climate"></div>
+      <div style="position:absolute;left:24px;top:92px;width:244px;font-size:var(--f48);color:var(--cream);line-height:72px" id="tempval">--</div>
+      <div class="sub" style="position:absolute;left:24px;top:166px;width:230px;color:var(--mdark)" data-t="ov_tempnote"></div>
+      <div class="hair" style="position:absolute;left:24px;top:216px;width:244px;background:#56534D"></div>
+      <div style="position:absolute;left:24px;top:224px;font-size:var(--f18);color:var(--cream)" id="humval">--</div>
+      <div class="sub" style="position:absolute;left:96px;top:226px;width:120px;color:var(--mdark)" data-t="ov_hum"></div>
+      <div style="position:absolute;left:24px;top:256px;font-size:var(--f18);color:var(--cream)" id="pressval">--</div>
+      <div class="sub" style="position:absolute;left:96px;top:258px;width:150px;color:var(--mdark)" data-t="ov_press"></div>
+    </div>
+
+    <div class="tiny" style="position:absolute;left:362px;top:166px;width:300px" data-t="ov_signals"></div>
+    <div style="position:absolute;left:362px;top:204px;width:250px;font-size:var(--f18);color:var(--ink)" data-t="ov_sigtitle"></div>
+    <div id="siglist"></div>
+
+    <div id="ovchips"></div>
+    <div style="position:absolute;left:36px;top:556px;width:122px;height:3px;background:var(--metal)"></div>
+  </section>
+
+  <!-- ── 2. 环境 ── -->
+  <section class="page" data-page="environment">
+    <div class="eyebrow" style="position:absolute;left:36px;top:44px" data-t="en_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:74px;width:500px" data-t="en_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:116px;width:600px" data-t="en_sub"></div>
+    <div class="tiny" style="position:absolute;left:770px;top:44px;width:120px" id="envstat"></div>
+
+    <div class="card dark" style="left:36px;top:166px;width:344px;height:340px">
+      <div class="tiny" style="position:absolute;left:24px;top:34px;color:var(--mdark)" data-t="en_profile"></div>
+      <div style="position:absolute;left:24px;top:104px;width:290px;font-size:var(--f48);color:var(--cream);line-height:72px" id="profval" data-t="en_profval"></div>
+      <div class="sub" style="position:absolute;left:24px;top:180px;width:300px;color:var(--mdark)" id="profsub">--</div>
+      <div class="hair" style="position:absolute;left:24px;top:214px;width:296px;background:#56534D"></div>
+      <div class="tiny" style="position:absolute;left:24px;top:226px;width:200px;color:var(--mdark)" data-t="en_trend"></div>
+      <svg id="chart" style="position:absolute;left:24px;top:248px" width="296" height="84" viewBox="0 0 296 84">
+        <line x1="0" y1="26" x2="296" y2="26" stroke="#3A3A38" stroke-width="1"/>
+        <line x1="0" y1="56" x2="296" y2="56" stroke="#3A3A38" stroke-width="1"/>
+        <polyline id="chartline" fill="none" stroke="#C69A59" stroke-width="2"
+          points="0,66 20,60 40,54 60,56 80,48 100,40 120,42 140,34 160,30 180,24 200,28 220,20 240,22 260,16 280,18 296,14"/>
+      </svg>
+    </div>
+
+    <div class="tiny" style="position:absolute;left:424px;top:166px;width:300px" data-t="en_readings"></div>
+    <div style="position:absolute;left:424px;top:204px;width:250px;font-size:var(--f18);color:var(--ink)" data-t="en_live"></div>
+    <div id="envlist"></div>
+  </section>
+
+  <!-- ── 3. 设备 ── -->
+  <section class="page" data-page="devices">
+    <div class="eyebrow" style="position:absolute;left:36px;top:44px" data-t="dv_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:74px;width:500px" data-t="dv_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:116px;width:600px" data-t="dv_sub"></div>
+    <div class="tiny" style="position:absolute;left:760px;top:44px;width:130px" data-t="dv_count"></div>
+
+    <div class="chip" data-dev="0" style="left:36px;top:166px;width:386px">
+      <div class="nm" data-t="dev_light"></div>
+      <div class="ds" data-t="dv_light_note"></div><div class="st">OFF</div></div>
+    <div class="chip" data-dev="1" style="left:36px;top:282px;width:386px">
+      <div class="nm" data-t="dev_pump"></div>
+      <div class="ds" data-t="dv_pump_note"></div><div class="st">OFF</div></div>
+
+    <div class="tiny" style="position:absolute;left:478px;top:166px;width:300px" data-t="dv_safety"></div>
+    <div id="safetylist"></div>
+
+    <!-- 语言开关（按你的要求放在设备页；同时也在屏外面板） -->
+    <div class="card" style="left:36px;top:400px;width:386px;height:68px">
+      <div style="position:absolute;left:24px;top:16px;width:240px;font-size:var(--f18);color:var(--ink)" data-t="dv_lang"></div>
+      <div style="position:absolute;left:24px;top:42px;width:250px;font-size:var(--f14);color:var(--muted)" data-t="dv_lang_note"></div>
+      <div class="sw on" id="langsw" style="left:318px;top:22px"><i></i></div>
+    </div>
+  </section>
+
+  <!-- ── 4. 自动化 ── -->
+  <section class="page" data-page="automation">
+    <div class="eyebrow" style="position:absolute;left:36px;top:44px" data-t="au_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:74px;width:620px" data-t="au_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:116px;width:600px" id="rulestat"></div>
+    <div class="chip" style="left:764px;top:44px;width:100px;height:44px;border-radius:22px;background:var(--ink);justify-content:center" id="addrule">
+      <div class="nm" style="position:static;font-size:var(--f14);color:var(--cream)" data-t="au_add"></div></div>
+    <div class="tiny" style="position:absolute;left:36px;top:166px;width:300px" data-t="au_engine"></div>
+    <div id="rulelist"></div>
+    <div class="todo" style="position:absolute;left:36px;top:470px;width:864px;font-size:var(--f12);color:#8A3B36"
+         data-t="au_pending"></div>
+  </section>
+
+  <!-- ── 5. 告警 ── -->
+  <section class="page" data-page="alerts">
+    <div class="eyebrow" style="position:absolute;left:36px;top:44px" data-t="al_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:74px;width:600px" data-t="al_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:116px;width:600px" data-t="al_sub"></div>
+    <div class="tiny" style="position:absolute;left:790px;top:44px;width:110px" id="alcount"></div>
+
+    <div class="card dark" style="left:36px;top:166px;width:864px;height:96px" id="alertbanner">
+      <div class="tiny" style="position:absolute;left:24px;top:18px;width:300px;color:var(--metal)">LIVE MONITOR</div>
+      <div style="position:absolute;left:24px;top:40px;width:620px;font-size:var(--f18);color:var(--cream)" id="almain"></div>
+      <div class="sub" style="position:absolute;left:24px;top:66px;width:640px;color:var(--mdark)" id="alsub"></div>
+      <div style="position:absolute;left:766px;top:40px;width:80px;font-size:var(--f14);color:var(--metal);cursor:pointer" data-t="al_view" data-modal="1"></div>
+    </div>
+    <div class="hair" style="position:absolute;left:36px;top:308px;width:864px"></div>
+    <div style="position:absolute;left:36px;top:330px;width:520px;font-size:var(--f14);color:var(--muted)" data-t="al_soil"></div>
+    <div style="position:absolute;left:760px;top:330px;width:140px;font-size:var(--f14);color:var(--ink)" id="soilalarm">--</div>
+    <div class="hair" style="position:absolute;left:36px;top:371px;width:864px"></div>
+    <div style="position:absolute;left:36px;top:393px;width:520px;font-size:var(--f14);color:var(--muted)" data-t="al_priv"></div>
+    <div style="position:absolute;left:760px;top:393px;width:140px;font-size:var(--f14);color:var(--ink)" data-t="al_info"></div>
+    <div style="position:absolute;left:36px;top:440px;width:864px;font-size:var(--f14);color:var(--muted)" data-t="al_note"></div>
+  </section>
+
+  <!-- ── 6. 设置 ── -->
+  <section class="page" data-page="settings">
+    <div class="eyebrow" style="position:absolute;left:36px;top:44px" data-t="st_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:74px;width:600px" data-t="st_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:116px;width:600px" data-t="st_sub"></div>
+    <div class="tiny" style="position:absolute;left:36px;top:166px;width:300px" data-t="st_prefs"></div>
+    <div id="setlist"></div>
+    <div class="card dark" style="left:36px;top:400px;width:768px;height:42px">
+      <div class="tiny" style="position:absolute;left:24px;top:12px;width:700px;color:var(--cream)" id="syshealth"></div>
+    </div>
+  </section>
+
+  <!-- ── 下级界面 A：网络连接（WiFi 列表） ── -->
+  <section class="subpage" data-page="wifi">
+    <div class="chip" style="left:36px;top:36px;width:96px;height:44px;border-radius:22px;background:var(--alt);justify-content:center" data-back="1">
+      <div class="nm" style="position:static;font-size:var(--f14);color:var(--ink)" data-t="pg_back"></div></div>
+    <div class="eyebrow" style="position:absolute;left:150px;top:44px" data-t="wf_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:100px;width:600px" data-t="wf_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:140px;width:600px" id="wfstatus"></div>
+    <div class="tiny" style="position:absolute;left:676px;top:150px;width:224px;text-align:right" data-t="wf_hint"></div>
+    <div id="wflist"></div>
+    <div style="position:absolute;left:36px;top:522px;width:864px;font-size:var(--f12);color:var(--muted)" data-t="wf_feas"></div>
+  </section>
+
+  <!-- ── 下级界面 B：屏幕与声音 ── -->
+  <section class="subpage" data-page="display">
+    <div class="chip" style="left:36px;top:36px;width:96px;height:44px;border-radius:22px;background:var(--alt);justify-content:center" data-back="1">
+      <div class="nm" style="position:static;font-size:var(--f14);color:var(--ink)" data-t="pg_back"></div></div>
+    <div class="eyebrow" style="position:absolute;left:150px;top:44px" data-t="dp_eyebrow"></div>
+    <div class="title" style="position:absolute;left:36px;top:100px;width:600px" data-t="dp_title"></div>
+    <div class="sub" style="position:absolute;left:36px;top:140px;width:700px" data-t="dp_sub"></div>
+    <div id="dslist"></div>
+    <div style="position:absolute;left:36px;top:522px;width:864px;font-size:var(--f12);color:var(--muted)" data-t="dp_feas"></div>
+  </section>
+
+  </div><!-- /shell -->
+
+  <!-- ── 待机层：只有时间 + 天气 + 温度 ── -->
+  <div class="standby on" id="standby">
+    <div class="media">
+      <div class="video"><div class="wp-sky"></div><div class="wp-sun"></div><div class="wp-mt"></div></div>
+      <div class="footer">
+        <div class="ftime">20:14</div>
+        <div class="fbadge" id="sbBadge"></div>
+        <div class="fcond" id="sbCond"></div>
+        <div class="ficon"></div>
+        <div class="ftemp" id="sbTemp">18°C</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="modal" id="modal"><div class="box">
+    <h3 data-t="md_title"></h3>
+    <div class="hair" style="position:absolute;left:24px;top:96px;width:512px"></div>
+    <div class="bd" id="modalbody"></div>
+    <button class="no" data-t="md_cancel"></button>
+    <button class="ok" data-t="md_ok"></button>
+  </div></div>
+
+</div>
+</div>
+</main>
+
+<script>
+/* ══════ 1. 文案表（中/英，同一份 copy 驱动整屏） ══════ */
+const COPY = {
+ ov_eyebrow:{zh:"SMART HOME / 概览",en:"SMART HOME / OVERVIEW"},
+ ov_title:{zh:"家 / 今日",en:"Home / Today"},
+ ov_nodes:{zh:"P4 / F103 / C3",en:"P4 / F103 / C3"},
+ ov_climate:{zh:"室内气候",en:"INDOOR CLIMATE"},
+ ov_tempnote:{zh:"室内温度 / BMP280",en:"Indoor temp / BMP280"},
+ ov_hum:{zh:"湿度",en:"Humidity"}, ov_press:{zh:"气压 hPa",en:"Pressure hPa"},
+ ov_signals:{zh:"信号 / 03",en:"SIGNALS / 03"},
+ ov_sigtitle:{zh:"室内信号",en:"Indoor signals"},
+ dev_light:{zh:"灯光",en:"Light"}, dev_pump:{zh:"水泵",en:"Pump"},
+ sig_air:{zh:"空气质量",en:"Air quality"}, sig_gas:{zh:"可燃气",en:"Combustible gas"}, sig_human:{zh:"人体",en:"Presence"},
+
+ en_eyebrow:{zh:"SMART HOME / 环境",en:"SMART HOME / ENVIRONMENT"},
+ en_title:{zh:"环境 · 曲线",en:"Environment · Trends"},
+ en_sub:{zh:"读数、来源、趋势，保持同一视觉节奏",en:"Readings, sources and trends in one rhythm"},
+ en_profile:{zh:"房间画像 / 客厅",en:"ROOM PROFILE / LIVING"},
+ en_profval:{zh:"未检测",en:"No data"}, en_trend:{zh:"24 小时温度趋势",en:"24H TEMPERATURE"},
+ /* 房间画像多态：不只是"舒适" */
+ pf_comfort:{zh:"舒适",en:"Comfort"}, pf_dry:{zh:"偏干",en:"Dry"}, pf_humid:{zh:"偏湿",en:"Humid"},
+ pf_hot:{zh:"偏热",en:"Warm"}, pf_cold:{zh:"偏冷",en:"Cool"}, pf_muggy:{zh:"闷热",en:"Muggy"},
+ pf_nodata:{zh:"数据不足",en:"Not enough data"},
+ pf_adv_comfort:{zh:"温湿度都在舒适区，无需处理",en:"Temperature and humidity are in the comfort zone"},
+ pf_adv_dry:{zh:"湿度偏低 · 建议加湿",en:"Low humidity · consider humidifying"},
+ pf_adv_humid:{zh:"湿度偏高 · 建议除湿或通风",en:"High humidity · dehumidify or ventilate"},
+ pf_adv_hot:{zh:"温度偏高 · 建议通风降温",en:"Warm · ventilate to cool down"},
+ pf_adv_cold:{zh:"温度偏低 · 建议提高室温",en:"Cool · raise the room temperature"},
+ pf_adv_muggy:{zh:"又热又湿 · 建议开窗通风",en:"Hot and humid · open a window"},
+ pf_adv_nodata:{zh:"数据不可用 · 等待传感器恢复",en:"Data unavailable · wait for sensors"},
+ en_readings:{zh:"实时读数 / 07",en:"SENSOR READINGS / 07"},
+ en_live:{zh:"实时读数",en:"Live readings"},
+ s_temp:{zh:"温度",en:"Temp"}, s_hum:{zh:"湿度",en:"Humidity"}, s_press:{zh:"气压",en:"Pressure"},
+ s_soil:{zh:"土壤",en:"Soil"}, s_air:{zh:"空气 / 可燃气 / 雨滴",en:"Air / Gas / Rain"},
+
+ dv_eyebrow:{zh:"SMART HOME / 设备",en:"SMART HOME / DEVICES"},
+ dv_title:{zh:"设备 · 触感",en:"Devices · Touch"},
+ dv_sub:{zh:"命令不是状态，回读确认才是状态",en:"A command is not a state — read-back is"},
+ dv_count:{zh:"3 路执行器",en:"3 ACTUATORS"},
+ dv_light_note:{zh:"继电器 1 · 已回读",en:"Relay 1 · read back"},
+ dv_pump_note:{zh:"继电器 2 · 安全上限 10 秒",en:"Relay 2 · 10 s safety limit"},
+ dv_safety:{zh:"安全 / 03",en:"SAFETY / 03"},
+ dv_lang:{zh:"界面语言",en:"Interface language"},
+ dv_lang_note:{zh:"中文 / English（随系统持久化）",en:"Chinese / English (persisted)"},
+ sf_lock:{zh:"门锁（未接入）",en:"Lock (not fitted)"},
+ sf_beep:{zh:"蜂鸣器",en:"Buzzer"}, sf_guard:{zh:"执行保护",en:"Execution guard"},
+ sv_na:{zh:"不可用",en:"N/A"}, sv_mute:{zh:"静音",en:"Mute"}, sv_confirm:{zh:"二次确认",en:"Confirm"},
+
+ au_eyebrow:{zh:"SMART HOME / 自动化",en:"SMART HOME / AUTOMATION"},
+ au_title:{zh:"自动化 / 安静地运行",en:"Automation · Runs quietly"},
+ au_add:{zh:"+ 规则",en:"+ Rule"},
+ au_engine:{zh:"本地规则引擎",en:"LOCAL RULE ENGINE"},
+ au_pending:{zh:"定案（2026-10-18）：本页保持「只读 + 开/关」；规则编辑走 P4 自带的本地配置端点（HTTP/WS）直接写 NVS 双槽 r0/r1，协议层无需扩展。",en:"Decided (2026-10-18): this page stays read-only + on/off; rule editing goes through P4's own local config endpoint (HTTP/WS) writing the NVS slots r0/r1 — no protocol change needed."},
+ rule1:{zh:"回家",en:"Arrive"}, rule1d:{zh:"有人 / 开灯",en:"Motion / light on"},
+ rule2:{zh:"智能灌溉",en:"Smart watering"}, rule2d:{zh:"土壤 < 35% 且未下雨 / 水泵 6 秒",en:"Soil < 35% and dry / pump 6 s"},
+ rule3:{zh:"夜间守护",en:"Quiet night"}, rule3d:{zh:"本地静音保护 / 关闭蜂鸣器",en:"Local mute / buzzer off"},
+ rs_active:{zh:"规则运行中 / 本地执行",en:"RULES ACTIVE / LOCAL"},
+ rs_paused:{zh:"规则暂停 / 链路离线",en:"RULES PAUSED / OFFLINE"},
+ rs_fired:{zh:"规则已触发 / 已下发命令",en:"RULE FIRED / CMD SENT"},
+ rm_wait:{zh:"等待触发",en:"Standing by"},
+ rm_active:{zh:"运行中",en:"Active"}, rm_off:{zh:"已停用",en:"Off"},
+
+ al_eyebrow:{zh:"SMART HOME / 告警",en:"SMART HOME / ALERTS"},
+ al_title:{zh:"告警 · 需要你知道的事",en:"Alerts · What matters"},
+ al_sub:{zh:"少打扰，但不漏掉关键风险",en:"Few nudges, no missed risk"},
+ al_view:{zh:"查看",en:"Detail"},
+ al_soil:{zh:"土壤湿度 / 灌溉判定",en:"Soil moisture / irrigation"},
+ al_priv:{zh:"摄像头隐私模式已开启",en:"Camera privacy mode on"},
+ al_info:{zh:"信息",en:"Info"},
+ al_note:{zh:"告警语义：安全动作（蜂鸣/关断）在 F103 本地完成，本页只反映 ALARM_EVENT 与数据恢复。",en:"Semantics: safety actions run locally on F103; this page only reflects ALARM_EVENT and data recovery."},
+ ac_none:{zh:"正常",en:"NORMAL"}, ac_alert:{zh:"1 条告警",en:"1 ALERT"}, ac_clear:{zh:"已恢复",en:"RECOVERED"},
+ al_none:{zh:"当前无告警",en:"NO ACTIVE ALERT"},
+ al_none_sub:{zh:"可燃气 / 空气质量均在阈值内",en:"Gas and air quality within limits"},
+ al_kind_gas:{zh:"可燃气超标 · MQ-4",en:"Gas above limit · MQ-4"},
+ al_since:{zh:"持续 2 分钟",en:"2 min elapsed"},
+ al_cleared:{zh:"告警已解除 · 数值已恢复",en:"Alert cleared · value recovered"},
+ al_trigger:{zh:"触发值",en:"value"}, al_thr:{zh:"阈值",en:"threshold"},
+ lv_urgent:{zh:"紧急",en:"Urgent"}, lv_warn:{zh:"警告",en:"Warning"}, lv_hint:{zh:"提示",en:"Hint"},
+
+ st_eyebrow:{zh:"SMART HOME / 系统",en:"SMART HOME / SYSTEM"},
+ st_title:{zh:"设置 · 系统偏好",en:"Settings · Preferences"},
+ st_sub:{zh:"像调节一件实体产品，而不是维护后台",en:"Tune it like a product, not a backend"},
+ st_prefs:{zh:"偏好",en:"PREFERENCES"},
+ set1:{zh:"网络连接",en:"Network"}, set2:{zh:"屏幕与声音",en:"Display & sound"},
+ set3:{zh:"设备与标定",en:"Devices & calibration"}, set4:{zh:"隐私与摄像头",en:"Privacy & camera"},
+ sh_ok:{zh:"系统健康 · 正常",en:"SYSTEM HEALTH · OK"},
+ sh_deg:{zh:"系统健康 · 链路降级",en:"SYSTEM HEALTH · DEGRADED"},
+ sh_off:{zh:"系统健康 · 链路离线",en:"SYSTEM HEALTH · LINK DOWN"},
+ pg_back:{zh:"返回",en:"Back"},
+
+ wf_eyebrow:{zh:"设置 / 网络连接",en:"SETTINGS / NETWORK"},
+ wf_title:{zh:"网络连接",en:"Network"},
+ wf_hint:{zh:"点击网络输入密码",en:"Tap a network to enter the password"},
+ wf_feas:{zh:"可行性：列表用可滚动容器；密码输入需要 lv_keyboard（较重）——更省的做法是沿用现有「网页配网」通道，屏上只读。",en:"Feasibility: scrollable list; password entry needs lv_keyboard (heavy). Cheaper: reuse the existing web provisioning path and keep this screen read-only."},
+ wf_scan:{zh:"重新扫描",en:"Rescan"}, wf_saved:{zh:"已保存",en:"Saved"}, wf_conn:{zh:"连接中",en:"Connecting"},
+ wf_fail:{zh:"连接失败",en:"Failed"}, wf_bars:{zh:"信号",en:"Signal"},
+ dp_eyebrow:{zh:"设置 / 屏幕与声音",en:"SETTINGS / DISPLAY & SOUND"},
+ dp_title:{zh:"屏幕与声音",en:"Display & sound"},
+ dp_sub:{zh:"亮度、音量、待机超时——都是实机可调的项",en:"Brightness, volume and standby timeout are all real device settings"},
+ dp_feas:{zh:"可行性：亮度/音量为 lv_slider（0~100），待机超时复用 STANDBY_IDLE_SEC（当前 60s）。",en:"Feasibility: brightness/volume as lv_slider (0~100); standby timeout reuses STANDBY_IDLE_SEC (60 s today)."},
+ dp_bright:{zh:"亮度",en:"Brightness"}, dp_vol:{zh:"音量",en:"Volume"},
+ dp_mute:{zh:"蜂鸣器提示音",en:"Buzzer prompts"}, dp_idle:{zh:"待机超时",en:"Standby timeout"},
+ dp_idle_val:{zh:"60 秒",en:"60 s"},
+ dp_bright_val:{zh:"72%",en:"72%"}, dp_vol_val:{zh:"60%",en:"60%"},
+
+ sb_cond:{zh:"多云",en:"Cloudy"},
+ sb_badge:{zh:"可燃气超标",en:"GAS OVER LIMIT"},
+ md_title:{zh:"告警详情",en:"Alert detail"},
+ md_ok:{zh:"确认",en:"Confirm"}, md_cancel:{zh:"取消",en:"Cancel"},
+ md_body_none:{zh:"当前没有需要处理的告警。",en:"No alert needs attention right now."},
+ md_body_gas:{zh:"可燃气 MQ-4 读数超过阈值，已由 F103 本地蜂鸣提醒；建议开窗通风并确认气源。",en:"MQ-4 is above the threshold; the local buzzer is sounding. Ventilate and check the gas source."},
+ md_body_rule:{zh:"规则的编辑入口已定案：由 P4 提供本地配置端点（HTTP/WS）写 NVS 双槽 r0/r1，网页端负责编辑、设备端负责执行。屏上保持只读 + 开/关。",en:"Rule editing is settled: P4 exposes a local config endpoint (HTTP/WS) that writes the NVS slots r0/r1 — the web UI edits, the device executes. This screen stays read-only + on/off."},
+ toast_sent:{zh:"已发送 · 连接",en:"Sent · Link"},
+ toast_off:{zh:"F103 离线 / 未发送",en:"F103 offline / not sent"},
+ toast_busy:{zh:"正在读取设备状态",en:"Reading device state"},
+ toast_readonly:{zh:"只读页 · 无操作",en:"Read-only page"},
+
+ /* 状态词（字段 × 状态） */
+ w_link_up:{zh:"在线",en:"Online"}, w_link_deg:{zh:"降级",en:"Degraded"}, w_link_down:{zh:"离线",en:"Offline"},
+ w_q_valid:{zh:"有效",en:"Valid"}, w_q_warmup:{zh:"预热中",en:"Warming up"},
+ w_q_over:{zh:"超量程",en:"Over range"}, w_q_fault:{zh:"故障",en:"Fault"}, w_q_stale:{zh:"陈旧",en:"Stale"},
+ w_act_on:{zh:"运行中",en:"On"}, w_act_off:{zh:"已关闭",en:"Off"},
+ w_act_unknown:{zh:"未知",en:"Unknown"}, w_act_guard:{zh:"已保护",en:"Guarded"},
+ w_a_ok:{zh:"优",en:"Good"}, w_a_mid:{zh:"良",en:"Fair"}, w_a_low:{zh:"中",en:"Moderate"}, w_a_bad:{zh:"差",en:"Poor"},
+ w_h_yes:{zh:"有人",en:"Present"}, w_h_no:{zh:"无人",en:"No motion"},
+ w_rain_yes:{zh:"下雨",en:"Raining"}, w_rain_no:{zh:"未下雨",en:"Dry"},
+ w_pump_alarm:{zh:"干烧保护",en:"Dry-run guard"}, w_pump_ok:{zh:"正常",en:"Normal"}
+};
+
+/* ══════ 2. 状态 ══════ */
+let lang="zh", mode="standby", alarm=0, link=1, qual=0, prof=0, devOn=[false,false], ruleOn=[true,true,false], wfSel=0;
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const T=k=>(COPY[k]||{zh:k,en:k})[lang];
+const L=(zh,en)=>lang==="zh"?zh:en;
+
+/* 传感器质量的统一出口：任何数值字段都先过这一层，再决定屏上显示什么 */
+function val(real){
+  if(link===0) return {txt:T('w_link_down'), dim:true};
+  if(qual===1) return {txt:T('w_q_warmup'), dim:true};
+  if(qual===2) return {txt:T('w_q_over'), dim:true};
+  if(qual===3) return {txt:T('w_q_fault'), dim:true};
+  if(qual===4) return {txt:T('w_q_stale'), dim:true};
+  return {txt:real, dim:false};
+}
+/* 空气质量/可燃气阶梯：0~20 优 / 20~40 良 / 40~60 中 / >60 差（>60 与告警阈值一致） */
+function tier(p){
+  if(p<=20) return {k:'w_a_ok', cls:'t-ok'};
+  if(p<=40) return {k:'w_a_mid', cls:'t-mid'};
+  if(p<=60) return {k:'w_a_low', cls:'t-mid'};
+  return {k:'w_a_bad', cls:'t-bad'};
+}
+/* 房间画像：温度/湿度组合 + 质量态 → 大字词 + 一行建议（阈值可调） */
+const PROF = {
+  1:{k:'pf_comfort',a:'pf_adv_comfort'}, 2:{k:'pf_dry',a:'pf_adv_dry'},
+  3:{k:'pf_humid',a:'pf_adv_humid'},     4:{k:'pf_hot',a:'pf_adv_hot'},
+  5:{k:'pf_cold',a:'pf_adv_cold'},       6:{k:'pf_nodata',a:'pf_adv_nodata'},
+  7:{k:'pf_muggy',a:'pf_adv_muggy'}
+};
+function profile(){
+  if(prof!==0) return PROF[prof];
+  if(link===0 || qual!==0) return PROF[6];
+  const t=24.6, h=58;                    /* 实机来源：DHT11 温度 + 湿度 */
+  if(t>26 && h>60) return PROF[7];
+  if(t>26) return PROF[4];
+  if(t<20) return PROF[5];
+  if(h<40) return PROF[2];
+  if(h>60) return PROF[3];
+  return PROF[1];
+}
+
+/* ══════ 3. 渲染 ══════ */
+function render(){
+  const up = link===1, deg = link===2;
+  /* —— 链路：概览状态行 + 环境右上 + 系统健康 —— */
+  const linkTxt = link===0? T('lm_down') : deg? T('w_link_deg') : T('w_link_up');
+  const lc = $('#linkline'); lc.textContent = L("F103 ", "F103 ") + linkTxt; lc.style.color = link===0? "var(--metal)" : "var(--muted)";
+  $('#envstat').textContent = linkTxt;
+  $('#syshealth').textContent = link===0? T('sh_off') : deg? T('sh_deg') : T('sh_ok');
+  $('#rulestat').textContent = link===0? T('rs_paused') : T('rs_active');
+  $('#alcount').textContent = alarm===0? T('ac_none') : alarm===1? T('ac_alert') : T('ac_clear');
+
+  /* —— 概览：气候卡（温度/湿度/气压同一套质量出口） —— */
+  const t0=val("24.6 °C"), h0=val("58 %"), p0=val("1013 hPa");
+  $('#tempval').textContent = t0.txt;  $('#tempval').style.fontSize = t0.dim?"var(--f28)":"var(--f48)";
+  $('#humval').textContent  = h0.txt;
+  $('#pressval').textContent= p0.txt;
+
+  /* —— 概览：三路信号，按阶梯等级 —— */
+  const gasP = alarm===1? 62 : 21, airP = 12;
+  const rows = [
+    {name:T('sig_air'),   tier:tier(airP),  hist:L("12",  "12")},
+    {name:T('sig_gas'),   tier:tier(gasP),  hist:L("21 → 62", "21 → 62")},
+    {name:T('sig_human'), tier:{k:'w_h_yes',cls:'t-ok'}, hist:"—"}
+  ];
+  $('#siglist').innerHTML = rows.map((r,i)=>`
+    <div class="hair" style="position:absolute;left:362px;top:${242+i*68}px;width:500px"></div>
+    <div style="position:absolute;left:362px;top:${264+i*68}px;width:200px;font-size:var(--f14);color:var(--muted)">${r.name}</div>
+    <div class="tier ${r.tier.cls}" style="left:560px;top:${260+i*68}px">${T(r.tier.k)}</div>
+    <div style="position:absolute;left:700px;top:${261+i*68}px;width:120px;font-size:var(--f14);color:var(--ink);text-align:right">${link===0?"--":r.hist}</div>
+    <div style="position:absolute;left:860px;top:${270+i*68}px;width:10px;height:10px;border-radius:5px;background:${link===0?"var(--mdark)":"var(--metal)"}"></div>`).join("");
+
+  /* —— 概览：两个执行器卡（可点；离线/未知有专门词） —— */
+  $('#ovchips').innerHTML = [T('dev_light'),T('dev_pump')].map((n,i)=>{
+    const st = link===0? T('w_act_unknown') : (devOn[i]? T('w_act_on') : T('w_act_off'));
+    return `<div class="chip${devOn[i]&&link!==0?" on":""}" data-dev="${i}" style="left:${362+i*184}px;top:450px;width:170px">
+      <div class="nm">${n}</div><div class="st" style="right:16px">${st}</div></div>`;
+  }).join("");
+
+  /* —— 环境：读数 + 折线（质量态同样过 val()） —— */
+  const rd=[[T('s_temp'),val("24.6 °C")],[T('s_hum'),val("58 %")],[T('s_press'),val("1013 hPa")],
+            [T('s_soil'),val(link===0?"--":"41 %")],[T('s_air'),val(link===0?"--":L("12% / 21% / 未下雨","12% / 21% / dry"))]];
+  $('#envlist').innerHTML = rd.map((r,i)=>`
+    ${i<4?`<div class="hair" style="position:absolute;left:424px;top:${242+i*35}px;width:440px"></div>`:""}
+    <div style="position:absolute;left:424px;top:${250+i*35}px;width:240px;font-size:var(--f14);color:var(--muted)">${r[0]}</div>
+    <div style="position:absolute;left:690px;top:${248+i*35}px;width:220px;font-size:${i===3&&!r[1].dim?"var(--f18)":"var(--f14)"};color:${r[1].dim?"var(--muted)":(i===3?"#A87637":"var(--ink)")}">${r[1].txt}</div>`).join("");
+  $('#chartline').style.opacity = (link===0||qual!==0)? 0.25 : 1;
+
+  /* —— 设备：两张卡 + 安全三行 + 语言开关 —— */
+  $$(".chip[data-dev]").forEach(c=>{
+    const i=+c.dataset.dev, on=devOn[i]&&link!==0;
+    c.classList.toggle("on",on);
+    c.querySelector(".st").textContent = link===0? T('w_act_unknown') : (i===1&&ruleOn[1]&&devOn[1]? T('w_act_guard') : devOn[i]? T('w_act_on') : T('w_act_off'));
+  });
+  $('#safetylist').innerHTML = [[T('sf_lock'),T('sv_na')],[T('sf_beep'),ruleOn[2]?T('sv_mute'):L("开启","Armed")],[T('sf_guard'),T('sv_confirm')]]
+    .map((r,i)=>`<div class="hair" style="position:absolute;left:478px;top:${204+i*66}px;width:420px"></div>
+      <div style="position:absolute;left:478px;top:${226+i*66}px;width:240px;font-size:var(--f14);color:var(--muted)">${r[0]}</div>
+      <div style="position:absolute;left:790px;top:${224+i*66}px;width:110px;font-size:var(--f18);color:var(--ink)">${r[1]}</div>`).join("");
+
+  /* —— 自动化：规则行（左对齐 + 右侧真实开关） —— */
+  const rules=[[T('rule1'),T('rule1d')],[T('rule2'),T('rule2d')],[T('rule3'),T('rule3d')]];
+  $('#rulelist').innerHTML = rules.map((r,i)=>`
+    <div class="chip${ruleOn[i]?" on":""}" style="left:36px;top:${192+i*84}px;width:864px;height:68px">
+      <div class="nm" style="top:20px;left:24px;font-size:var(--f18)">${r[0]}</div>
+      <div class="ds" style="top:22px;left:118px;width:600px">${r[1]}</div>
+      <div class="st" style="top:22px;right:96px;font-size:var(--f14)">${ruleOn[i]?T('rm_active'):T('rm_off')}</div>
+      <div class="sw${ruleOn[i]?" on":""}" style="left:800px;top:22px" data-rule="${i}"><i></i></div>
+    </div>`).join("");
+
+  /* —— 告警：黑卡保持简洁（状态行 + 一行细节 + 查看） —— */
+  if(alarm===0){
+    $('#almain').textContent=T('al_none'); $('#alsub').textContent=T('al_none_sub');
+    $('#alertbanner').style.background="var(--ink)";
+  } else if(alarm===1){
+    $('#almain').textContent=T('al_kind_gas');
+    $('#alsub').textContent=`${T('lv_urgent')} · ${T('al_trigger')} ${gasP}% / ${T('al_thr')} 60% · ${T('al_since')}`;
+    $('#alertbanner').style.background="#2A1517";
+  } else {
+    $('#almain').textContent=T('al_cleared');
+    $('#alsub').textContent=`${T('al_trigger')} 41% < ${T('al_thr')} 60% · ${T('w_link_up')}`;
+    $('#alertbanner').style.background="var(--ink)";
+  }
+  $('#soilalarm').textContent = link===0? "--" : "41%";
+
+  /* —— 设置：四卡（前两卡可进下级） —— */
+  const sets=[[T('set1'),L("Wi-Fi / 已联网","Wi-Fi / online"),true],
+              [T('set2'),L("亮度 72% · 音量 60%","Brightness 72% · Volume 60%"),true],
+              [T('set3'),L("7 传感器 · 3 执行器","7 sensors · 3 actuators"),false],
+              [T('set4'),L("端侧处理 · 默认不上云","On-device · no cloud"),false]];
+  $('#setlist').innerHTML = sets.map((r,i)=>`
+    <div class="card" style="left:${36+(i%2)*396}px;top:${192+Math.floor(i/2)*94}px;width:372px;height:72px;${r[2]?"cursor:pointer":""}"
+         ${r[2]?`data-sub="${i===0?"wifi":"display"}"`:""}>
+      <div style="position:absolute;left:24px;top:18px;width:280px;font-size:var(--f18);color:var(--ink)">${r[0]}</div>
+      <div style="position:absolute;left:24px;top:45px;width:290px;font-size:var(--f14);color:${link===0?"var(--muted)":"var(--muted)"}">${link===0?"--":r[1]}</div>
+      ${r[2]?`<div style="position:absolute;right:20px;top:24px;font-size:var(--f18);color:var(--metal)">›</div>`:""}
+    </div>`).join("");
+
+  /* —— 下级：网络连接 —— */
+  $('#wfstatus').textContent = link===0? T('w_link_down') : L("已连接：Home-5G · 信号 良好","Connected: Home-5G · Signal good");
+  const nets=[["Home-5G",L("信号 良好","Signal good"),'wf_saved',true],
+              ["Home-2.4G",L("信号 一般","Signal fair"),'wf_saved',false],
+              ["Xiaomi_AX3000",L("信号 强","Signal strong"),'wf_fail',false],
+              ["IoT-Lab",L("信号 弱","Signal weak"),null,false]];
+  $('#wflist').innerHTML = nets.map((n,i)=>{
+    const sel = wfSel===i;
+    const state = n[2]? `<div class="tier ${n[2]==='wf_fail'?'t-bad':'t-ok'}" style="left:660px;top:${236+i*56}px">${T(n[2])}</div>`: "";
+    return `<div class="hair" style="position:absolute;left:36px;top:${228+i*56}px;width:864px"></div>
+      <div style="position:absolute;left:36px;top:${240+i*56}px;width:420px;font-size:var(--f18);color:var(--ink)">${sel&&link!==0?"✓ ":""}${n[0]}</div>
+      <div style="position:absolute;left:400px;top:${243+i*56}px;width:240px;font-size:var(--f14);color:var(--muted)">${n[1]}</div>${state}
+      ${n[2]===null?`<div style="position:absolute;left:660px;top:${243+i*56}px;font-size:var(--f14);color:var(--metal);cursor:pointer" data-wf="${i}">${L("连接","Connect")}</div>`:""}`;
+  }).join("") + `<div class="chip" style="left:36px;top:468px;width:180px;height:44px;border-radius:22px;background:var(--ink);justify-content:center" data-wfscan="1">
+      <div class="nm" style="position:static;font-size:var(--f14);color:var(--cream)">${T('wf_scan')}</div></div>`;
+
+  /* —— 下级：屏幕与声音 —— */
+  const ds=[[T('dp_bright'),T('dp_bright_val'),72],[T('dp_vol'),T('dp_vol_val'),60],[T('dp_idle'),T('dp_idle_val'),60]];
+  $('#dslist').innerHTML = ds.map((r,i)=>`
+    <div class="hair" style="position:absolute;left:36px;top:${224+i*72}px;width:864px"></div>
+    <div style="position:absolute;left:36px;top:${250+i*72}px;width:220px;font-size:var(--f18);color:var(--ink)">${r[0]}</div>
+    ${i<2?`<div class="slider" style="left:300px;top:${252+i*72}px;width:420px"><i style="width:${r[2]*4.2}px"></i><b style="left:${r[2]*4.2-12}px"></b></div>`
+         :`<div style="position:absolute;left:300px;top:${252+i*72}px;width:420px;font-size:var(--f14);color:var(--muted)">${L("空闲后进入待机层","Enter standby when idle")}</div>`}
+    <div style="position:absolute;left:760px;top:${250+i*72}px;width:140px;font-size:var(--f14);color:var(--ink);text-align:right">${r[1]}</div>`)
+    .join("") + `<div class="hair" style="position:absolute;left:36px;top:440px;width:864px"></div>
+    <div style="position:absolute;left:36px;top:466px;width:220px;font-size:var(--f18);color:var(--ink)">${T('dp_mute')}</div>
+    <div class="sw${ruleOn[2]?" on":""}" style="left:700px;top:462px" data-rule="2"><i></i></div>`;
+
+  /* —— 待机层（极简 + 页脚小提示） —— */
+  $('#sbCond').textContent = T('sb_cond');
+  $('#sbTemp').textContent = link===0? "--" : "18°C";
+  const bd=$('#sbBadge');
+  bd.classList.toggle("on", alarm===1);
+  bd.textContent = alarm===1? `${T('sb_badge')} · ${gasP}%` : "";
+
+  /* —— 环境页深色卡：房间画像多态 —— */
+  const pf=profile();
+  $('#profval').textContent = T(pf.k);
+  $('#profsub').textContent = T(pf.a);
+}
+
+/* ══════ 4. 语言 & 页面切换 ══════ */
+function applyLang(){
+  $$("[data-t]").forEach(el=>{el.textContent=T(el.dataset.t);});
+  render();
+  const tb=$("#copytable"); tb.innerHTML="";
+  Object.keys(COPY).forEach(k=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${k}</td><td class="zh">${COPY[k].zh}</td><td>${COPY[k].en}</td>`;
+    tb.appendChild(tr);
+  });
+  $('#langsw').classList.toggle("on", lang==="zh");
+  $('#lang-zh').classList.toggle("on", lang==="zh"); $('#lang-en').classList.toggle("on", lang==="en");
+}
+function setPage(p){
+  mode=p;
+  $$(".page,.subpage").forEach(e=>e.classList.toggle("on", e.dataset.page===p));
+  $('#standby').classList.toggle("on", p==="standby");
+  $$(".rail .nav").forEach(e=>e.classList.toggle("on", e.dataset.go===p));
+  $$(".panel [data-go]").forEach(e=>e.classList.toggle("on", e.dataset.go===p));
+}
+
+/* ══════ 5. 状态词表（字段 × 数据状态 → 屏上文案） ══════ */
+const MATRIX = [
+ ["链路","UP / DEGRADED / DOWN","在线 / 降级 / 离线（顶部状态行 + 系统健康）","P4 链路状态机（3s→DEGRADED、6s→DOWN）"],
+ ["传感器值","quality=0","正常数值","SENSOR_REPORT: dev_id+quality+float32"],
+ ["传感器值","quality=1/2/3/4","预热中 / 超量程 / 故障 / 陈旧（值位显示词而非数字）","同上（F103 侧质量标记）"],
+ ["空气质量","≤20 / ≤40 / ≤60 / >60","优 / 良 / 中 / 差（等级胶囊）","MQ-135 百分比（阈值 60 与告警一致）"],
+ ["可燃气","同上","优 / 良 / 中 / 差","MQ-4 百分比"],
+ ["人体","0 / 1","无人 / 有人","PIR（EXTI）"],
+ ["雨滴","阈值判定","未下雨 / 下雨","雨滴百分比"],
+ ["继电器","ACK 回读 state","运行中 / 已关闭","ACTUATOR_CMD_ACK.state（回读）"],
+ ["继电器","未收到快照","未知（禁止点击）","影子里 last_update 缺失"],
+ ["水泵","TTL 到期 / 干烧锁存","已保护 / 干烧保护","act_manager 上限 30s + F103 pump_alarm"],
+ ["规则","enabled 0/1","待触发 / 运行中","规则引擎 NVS 双槽 r0/r1"],
+ ["告警","无 / 进行中 / 已恢复","当前无告警 / 可燃气超标·紧急 / 已解除","ALARM_EVENT 10B + 数据恢复判定"],
+ ["房间画像","温湿度组合 + quality","舒适 / 偏干 / 偏湿 / 偏热 / 偏冷 / 闷热 / 数据不足（大字词）+ 建议行","DHT11 温度+湿度（阈值 20/26℃、40/60%）"],
+ ["待机","链路离线","温度显示 --（不显示假值）","影子新鲜度"]
+];
+$('#matrix').innerHTML = MATRIX.map(r=>`<tr><td>${r[0]}</td><td class="zh">${r[1]}</td><td class="zh">${r[2]}</td><td class="zh">${r[3]}</td></tr>`).join("");
+
+/* ══════ 6. 交互 ══════ */
+let toastTimer=null;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),1800);}
+document.addEventListener("click",e=>{
+  const go=e.target.closest("[data-go]"); if(go){setPage(go.dataset.go);return;}
+  if(e.target.closest("[data-back]")){setPage("settings");return;}
+  const sub=e.target.closest("[data-sub]"); if(sub){setPage(sub.dataset.sub);return;}
+  const sw=e.target.closest(".sw[data-rule]");
+  if(sw){const i=+sw.dataset.rule;ruleOn[i]=!ruleOn[i];toast(ruleOn[i]?L("已启用 · 已保存","Enabled · saved"):L("已停用 · 已保存","Disabled · saved"));render();return;}
+  const dev=e.target.closest(".chip[data-dev]");
+  if(dev){
+    if(link===0){toast(T('toast_off'));return;}
+    const i=+dev.dataset.dev;devOn[i]=!devOn[i];toast(T('toast_sent'));render();return;
+  }
+  const wf=e.target.closest("[data-wf]"); if(wf){wfSel=+wf.dataset.wf;toast(L("连接中 · 等待 DHCP","Connecting · waiting DHCP"));render();return;}
+  if(e.target.closest("[data-wfscan]")){toast(L("扫描中 · 2 个新网络","Scanning · 2 new"));return;}
+  if(e.target.closest("[data-modal]")){$('#modalbody').textContent = alarm===1?T('md_body_gas'):T('md_body_none');$('#modal').classList.add("show");return;}
+  if(e.target.closest("#addrule")){$('#modalbody').textContent=T('md_body_rule');$('#modal').classList.add("show");return;}
+  if(e.target.closest(".modal .no")||e.target.closest(".modal .ok")){$('#modal').classList.remove("show");return;}
+  const al=e.target.closest("[data-alarm]");
+  if(al){alarm=+al.dataset.alarm;$$(".panel [data-alarm]").forEach(x=>x.classList.toggle("on",x===al));render();return;}
+  const q=e.target.closest("[data-q]");
+  if(q){qual=+q.dataset.q;$$(".panel [data-q]").forEach(x=>x.classList.toggle("on",x===q));render();return;}
+  const lk=e.target.closest("[data-link]");
+  if(lk){link=+lk.dataset.link;$$(".panel [data-link]").forEach(x=>x.classList.toggle("on",x===lk));render();return;}
+  const pr=e.target.closest("[data-prof]");
+  if(pr){prof=+pr.dataset.prof;$$(".panel [data-prof]").forEach(x=>x.classList.toggle("on",x===pr));render();return;}
+});
+$("#langsw").onclick=()=>{lang = (lang==="zh")? "en" : "zh"; applyLang();};
+$("#lang-zh").onclick=()=>{lang="zh";applyLang();};
+$("#lang-en").onclick=()=>{lang="en";applyLang();};
+
+/* ══════ 7. 启动 + 回归参数 ?page=&lang=&alarm=&link=&q= ══════ */
+(function(){
+  const p=new URLSearchParams(location.search);
+  if(p.get('lang')==='en') lang="en";
+  if(p.has('alarm')) alarm=+p.get('alarm');
+  if(p.has('link')) link=+p.get('link');
+  if(p.has('q')) qual=+p.get('q');
+  if(p.has('prof')) prof=+p.get('prof');
+  $$(".panel [data-prof]").forEach(x=>x.classList.toggle("on",+x.dataset.prof===prof));
+  $$(".panel [data-alarm]").forEach(x=>x.classList.toggle("on",+x.dataset.alarm===alarm));
+  $$(".panel [data-link]").forEach(x=>x.classList.toggle("on",+x.dataset.link===link));
+  $$(".panel [data-q]").forEach(x=>x.classList.toggle("on",+x.dataset.q===qual));
+  applyLang();
+  setPage(p.get('page')||'standby');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+## Smart Home Hub - P4 Hub
+## 阶段 0: LCD 点屏 + 触摸 + LVGL 图形界面
+dependencies:
+  idf: '>=5.5'
+  lvgl/lvgl: 9.4.0
+  espressif/esp_lcd_touch_gt911: ^1.1.0
+  espressif/esp_lvgl_adapter: '*'
+  # ADR-012 修订（2026-10-18）：锁定实测已通过的版本组合。
+  # 原先写范围（">=2.11"）时 component manager 会拉到 3.0.9 —— 该版本配置符号
+  # 已更名，保留旧符号会导致全新生成 sdkconfig 时配置错误。
+  espressif/esp_wifi_remote: ==1.6.5
+  espressif/esp_hosted: ==3.0.9
+  espressif/esp_cam_sensor: ^2.0.1
+  espressif/cjson: ^1.7.19
+  # 待机层软件 JPEG 解码回退（硬件路径用 IDF 内置 esp_driver_jpeg，无需声明）
+  espressif/esp_new_jpeg: ^1.0.2
+  # 阶段 5：MQTT 客户端。IDF 6.1 核心已移除 esp-mqtt，改用 registry 组件
+  # （构建名 espressif__mqtt，头文件 mqtt_client.h）。锁定已解析通过的 1.1.0。
+  espressif/mqtt: ^1.1.0
+  # 阶段 7 P3：端侧人脸检测。模型（MSR+MNP，INT8）随组件以 RODATA 嵌入 app；
+  # esp-dl 3.3.14 声明 target esp32p4、IDF >=5.3。
+  espressif/esp-dl: ^3.3.14
+  espressif/human_face_detect: ^0.5.2

@@ -1,0 +1,5 @@
+build
+mx.scratch
+# 注意：CubeMX 原始生成的是反向包含 `!.settings`，会让 IDE 本地状态被提交进仓库。
+# 已改为忽略。若将来用 CubeMX 重新生成工程，请检查本行有没有被改回去。
+.settings/

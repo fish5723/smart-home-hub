@@ -1,0 +1,517 @@
+menu "Smart Home Hub — 硬件配置"
+
+    ## ─── LCD JD9165BA 配置 ───
+    config SMART_HOME_LCD_H_RES
+        int "LCD 水平分辨率"
+        default 1024
+
+    config SMART_HOME_LCD_V_RES
+        int "LCD 垂直分辨率"
+        default 600
+
+    config SMART_HOME_LCD_BACKLIGHT_GPIO
+        int "LCD 背光 GPIO (-1=不控制)"
+        default -1
+
+    config SMART_HOME_LCD_RST_GPIO
+        int "LCD 复位 GPIO (-1=软复位)"
+        default -1
+        help
+            JC-ESP32P4-M3-DEV 使用软复位（-1）。
+
+    config SMART_HOME_MIPI_DSI_LANE_NUM
+        int "MIPI DSI 数据通道数"
+        default 2
+        range 1 4
+
+    config SMART_HOME_MIPI_DSI_LANE_BITRATE_MBPS
+        int "MIPI DSI 通道速率 (Mbps)"
+        default 614
+
+    choice
+        prompt "MIPI DSI 防撕裂模式"
+        # Full refresh keeps transparent page layers and standby wallpaper
+        # from exposing pixels left in the previous framebuffer.
+        default SMART_HOME_LCD_TEAR_AVOID_DOUBLE_FULL
+
+        config SMART_HOME_LCD_TEAR_AVOID_NONE
+            bool "NONE — 无防撕裂"
+        config SMART_HOME_LCD_TEAR_AVOID_DOUBLE_DIRECT
+            bool "DOUBLE_DIRECT — 双缓冲局部刷新 (推荐)"
+        config SMART_HOME_LCD_TEAR_AVOID_DOUBLE_FULL
+            bool "DOUBLE_FULL — 双缓冲全屏刷新 (页面切换推荐)"
+        config SMART_HOME_LCD_TEAR_AVOID_TRIPLE_PARTIAL
+            bool "TRIPLE_PARTIAL — 三缓冲局部 + 旋转"
+        config SMART_HOME_LCD_TEAR_AVOID_TRIPLE_FULL
+            bool "TRIPLE_FULL — 三缓冲全屏"
+    endchoice
+
+    choice
+        prompt "LCD 旋转角度"
+        default SMART_HOME_LCD_ROTATE_0
+
+        config SMART_HOME_LCD_ROTATE_0
+            bool "0° (横屏)"
+        config SMART_HOME_LCD_ROTATE_90
+            bool "90°"
+        config SMART_HOME_LCD_ROTATE_180
+            bool "180°"
+        config SMART_HOME_LCD_ROTATE_270
+            bool "270°"
+    endchoice
+
+    config SMART_HOME_DMA2D_ENABLE
+        bool "启用 DMA2D 帧缓冲拷贝加速"
+        default y
+
+    ## ─── 触摸屏 GT911 ───
+    config SMART_HOME_TOUCH_ENABLED
+        bool "启用触摸屏 (GT911)"
+        # 阶段 0: 默认关闭，先验证点屏
+        default n
+
+    config SMART_HOME_TOUCH_RST_GPIO
+        int "GT911 RST GPIO"
+        depends on SMART_HOME_TOUCH_ENABLED
+        default 22
+
+    config SMART_HOME_TOUCH_INT_GPIO
+        int "GT911 INT GPIO"
+        depends on SMART_HOME_TOUCH_ENABLED
+        default 21
+
+    config SMART_HOME_TOUCH_I2C_SDA
+        int "GT911 SDA GPIO (I2C)"
+        depends on SMART_HOME_TOUCH_ENABLED
+        default 7
+
+    config SMART_HOME_TOUCH_I2C_SCL
+        int "GT911 SCL GPIO (I2C)"
+        depends on SMART_HOME_TOUCH_ENABLED
+        default 8
+
+    config SMART_HOME_TOUCH_I2C_ADDR
+        hex "GT911 I2C 地址 (7-bit)"
+        depends on SMART_HOME_TOUCH_ENABLED
+        default 0x14
+
+    ## ─── WiFi（通过 ESP-Hosted SDIO → C6） ───
+    config SMART_HOME_WIFI_ENABLED
+        bool "启用 WiFi"
+        default y
+        help
+            Enable WiFi initialization and connectivity via ESP-Hosted SDIO.
+
+    config SMART_HOME_WIFI_AUTO_CONNECT
+        bool "启动后自动连接 WiFi"
+        default y
+        depends on SMART_HOME_WIFI_ENABLED
+        help
+            Automatically connect to the last used WiFi network on boot.
+
+    config SMART_HOME_WIFI_SSID
+        string "默认 WiFi SSID"
+        default ""
+        depends on SMART_HOME_WIFI_ENABLED && SMART_HOME_WIFI_AUTO_CONNECT
+        help
+            Default SSID to connect to. Can be overridden at runtime via NVS.
+
+    config SMART_HOME_WIFI_PASSWORD
+        string "默认 WiFi 密码"
+        default ""
+        depends on SMART_HOME_WIFI_ENABLED && SMART_HOME_WIFI_AUTO_CONNECT
+        help
+            Default password for the WiFi network.
+
+    ## ─── 以下功能阶段 0 暂不需要，后续按需开启 ───
+
+    ## ─── 传感器可用性（现场硬件状态）───
+    config SMART_HOME_MQ4_UNAVAILABLE
+        bool "MQ-4 可燃气体通道暂不可用"
+        default n
+        help
+            历史：现场实测 MQ-4 模拟输入在 0~0.3V 间大幅摆动，无燃气时仍会跳
+            优/差/超量程并误报，故曾默认开启，面板显示“不可用”、不显示等级
+            与 MQ-4 告警。
+
+            2026-11-11：F103 改用社区标定参数（单点 R0=Rs(air)/4.4 +
+            ppm=1012.7*ratio^-2.786）后，空气读数稳定在 15~17ppm，硬件输出
+            也已稳定，故此开关默认关闭。仅在硬件再次异常时临时开启。
+
+    ## ─── OTA（阶段八：双分区 + 回滚）───
+    config SMART_HOME_OTA_ENABLED
+        bool "启用 P4 OTA（SD 卡触发）"
+        default y
+        help
+            启动时检查 SD 卡 OTA 文件，校验后写入非活动 OTA 分区并重启。
+            新镜像必须在系统自检通过后调用 ota_update_mark_valid()，
+            否则 bootloader 会在下一次复位时回滚到旧分区。
+
+    config SMART_HOME_OTA_SD_PATH
+        string "SD 卡 OTA 文件路径"
+        default "/sdcard/ota/p4-hub.bin"
+        depends on SMART_HOME_OTA_ENABLED
+
+    config SMART_HOME_OTA_ROLLBACK_SELFTEST
+        bool "回滚自测（启动后故意在 mark_valid 前崩溃）"
+        default n
+        depends on SMART_HOME_OTA_ENABLED
+        help
+            仅用于验收坏固件回滚；正式固件必须保持 n。
+
+    config SMART_HOME_F103_IAP_PATH
+        string "F103 IAP 镜像路径"
+        default "/sdcard/ota/f103-node.bin"
+        help
+            面板「设备与标定 → F103 固件」从这个文件读取 app 镜像。
+            镜像必须是链接在 0x08002000 的原始 .bin（f103-node.bin）。
+
+    ## ─── 网络 OTA（阶段八补充）───
+    config SMART_HOME_NET_OTA_ENABLED
+        bool "启用 P4 网络 OTA（HTTP/HTTPS manifest）"
+        default y
+        help
+            开机/定时/面板手动检查服务器 manifest；有新版本时下载到非活动
+            分区并校验 SHA256，随后重启。F103 镜像也会同步到 SD 卡。
+
+    config SMART_HOME_NET_OTA_MANIFEST_URL
+        string "网络 OTA manifest URL"
+        default ""
+        depends on SMART_HOME_NET_OTA_ENABLED
+        help
+            JSON 格式，例如：
+            {"p4":{"version":"0.8.1","url":"http://192.168.1.10:8000/p4-hub.bin",
+                   "size":4894944,"sha256":"..."},
+             "f103":{"version":"1.0.0","url":"http://192.168.1.10:8000/f103-node.bin",
+                     "size":52304,"sha256":"..."}}
+            留空表示不启用网络检查。HTTP 用于内网联调，HTTPS 默认校验公共 CA。
+
+    config SMART_HOME_NET_OTA_PERIOD_S
+        int "网络 OTA 定时检查周期（秒）"
+        default 21600
+        depends on SMART_HOME_NET_OTA_ENABLED
+        help
+            默认 6 小时；Wi-Fi 未连接时不会发起检查。
+
+    config SMART_HOME_NET_OTA_BOOT_CHECK
+        bool "开机 30 秒后自动检查一次"
+        default y
+        depends on SMART_HOME_NET_OTA_ENABLED
+
+    config SMART_HOME_NET_OTA_REQUIRE_SIGNATURE
+        bool "要求 manifest 镜像 ECDSA-P256 签名"
+        default y
+        depends on SMART_HOME_NET_OTA_ENABLED
+        help
+            开启后 manifest 的 p4/f103 对象必须带 "sig"（128 hex，raw r||s），
+            设备在下载前验签，失败不写分区。关闭仅用于联调；带 sig 时仍会验签。
+
+    config SMART_HOME_NET_OTA_PUBKEY_HEX
+        string "OTA 签名公钥 X||Y（128 hex）"
+        default "888aeadb1bd9ce44a79316f5476d0694d4b9790f29fe4842c45bde6c292c0ab057155634bf15959f6498c39d2080dff0da125df68a713789c08ef19d5ea67fcc"
+        depends on SMART_HOME_NET_OTA_ENABLED
+        help
+            设备端补 0x04 前缀后作为 P-256 公钥导入（PSA VERIFY_HASH）。
+            上面的默认值是开发密钥，正式部署必须替换；私钥用
+            python tools/ota_sign.py --gen-key 生成并保存在 tools/ota_keys/（已忽略）。
+
+    config SMART_HOME_NET_OTA_ALLOW_INSECURE_TLS
+        bool "允许不校验 HTTPS 证书（仅内网自签联调）"
+        default n
+        depends on SMART_HOME_NET_OTA_ENABLED
+        help
+            正式固件必须保持 n。开启后 HTTPS 不校验证书链，存在中间人风险。
+
+    ## ─── 显示链路（LCD/触摸/LVGL）───
+    ## 阶段 2 压测期间应设为 n（headless 模式）：
+    ## esp_lcd 的 MIPI-DSI 命令写入在面板无响应时会忙等挂死（FIFO 永不排空，
+    ## esp_lcd 内部无超时机制）——这是联调期反复看门狗复位的根源（backtrace:
+    ## mipi_dsi_host_ll_gen_is_cmd_fifo_full ← lcd_init）。压测测的是通信
+    ## 可靠性，屏幕与之无关，不初始化即可消除该复位源。
+    config SMART_HOME_LCD_ENABLED
+        bool "启用显示链路 (LCD + 触摸 + LVGL)"
+        default y
+        help
+            压测/联调通信时设为 n，系统以 headless 模式运行，
+            WiFi/协议/自动化逻辑不受影响（故障域隔离）。
+
+    config SMART_HOME_CAMERA_ENABLED
+        bool "启用摄像头 (OV5647 MIPI-CSI)"
+        default n
+        help
+            OV5647 500万像素摄像头, MIPI-CSI 2-lane 接口,
+            分辨率 800×640@30fps, 共用触摸 I2C 总线 (GPIO7/8) 作为 SCCB.
+
+    config SMART_HOME_CAMERA_PREVIEW_AUTO
+        bool "启动后自动开启摄像头预览"
+        depends on SMART_HOME_CAMERA_ENABLED
+        default n
+
+    config SMART_HOME_CAMERA_SELFTEST
+        bool "启动时跑摄像头自检 / JPEG 基准 / 人脸自检"
+        depends on SMART_HOME_CAMERA_ENABLED
+        default n
+        help
+            仅验收用：抓 3 帧、JPEG 硬/软编码对比、4 帧人脸检测。
+            默认关闭，避免每次启动都加载模型/做编码基准，缩短启动并降低功耗。
+
+    config SMART_HOME_VISION_EVENT_SELFTEST
+        bool "视觉事件自检（启动 10s 后模拟一次 PIR 触发）"
+        depends on SMART_HOME_CAMERA_ENABLED && SMART_HOME_VISION_ENABLED
+        default n
+        help
+            仅用于联调：链路未接 F103 时也能验证全屏预览动画、人脸检测与角标。
+            正式使用请保持关闭，触发源应为 F103 的 PROTO_DEV_HUMAN。
+
+    ## ─── 视觉任务平台 ───
+    config SMART_HOME_VISION_ENABLED
+        bool "启用视觉任务平台 (vision_core)"
+        default y
+        help
+            插件式任务调度平台: CAPTURE→UPLOAD→PROCESS→DISPLAY
+            当前仅搬平台层, 不含 OCR 业务。
+
+    config SMART_HOME_FACE_BATCH_TEST
+        bool "启动后批量跑 SD 卡人脸测试集"
+        depends on SMART_HOME_VISION_ENABLED
+        default n
+        help
+            遍历 /sdcard/images/positives 与 /sdcard/images/negatives 下的 JPG：
+            硬件 JPEG 解码 → RGB565 → 端侧检测，串口输出 FACE_BATCH 行。
+            数据集来自 tools/vision/data/wider_subset（40 正 + 10 负），
+            供 PC 侧按 labels.json 统计与 FP32 基线同口径的 TP/FP/FN。
+            仅供评测，正式使用请保持 n。
+
+    config SMART_HOME_FACE_BATCH_STANDALONE
+        bool "批量评测独立模式（跳过 WiFi/协议/摄像头/UI）"
+        depends on SMART_HOME_VISION_ENABLED
+        default n
+        help
+            仅用于评测：NVS/存储/SD 初始化后，主任务同步跑完 SD 卡测试集，
+            输出 FACE_BATCH 汇总后空转。不初始化 WiFi、协议、摄像头、LCD/UI，
+            避免其它子系统占 CPU/PSRAM 干扰耗时与结果。
+
+    ## ─── 待机层（时钟 + 天气动态壁纸）───
+    menu "待机层 / 动态天气壁纸"
+
+        config SMART_HOME_STANDBY_ENABLED
+            bool "启用待机层 (时钟 + 天气 + 动态壁纸)"
+            default y
+            help
+                全屏待机层覆盖在既有六页 UI 之上：双击唤醒进入控制面板，
+                主 UI 空闲超时后自动回到待机层。LCD 未启用时自动跳过。
+
+        config SMART_HOME_STANDBY_IDLE_SEC
+            int "主 UI 空闲返回待机层的秒数"
+            default 60
+            range 10 3600
+            depends on SMART_HOME_STANDBY_ENABLED
+
+        config SMART_HOME_STANDBY_DOUBLE_CLICK_MS
+            int "双击唤醒时间窗口 (ms)"
+            default 400
+            range 200 800
+            depends on SMART_HOME_STANDBY_ENABLED
+
+        config SMART_HOME_WALLPAPER_ENABLED
+            bool "启用 JWP 动态壁纸播放器"
+            default y
+            depends on SMART_HOME_STANDBY_ENABLED
+            help
+                从 SD 卡读取 JWP 容器（"JWP1" 头 + 逐帧 baseline JPEG），
+                解码为 RGB565 后按帧率推送给 LVGL 待机层。
+
+        config SMART_HOME_WALLPAPER_DIR
+            string "壁纸目录 (SD 卡挂载点下)"
+            default "/sdcard/wallpaper"
+            depends on SMART_HOME_WALLPAPER_ENABLED
+            help
+                目录结构: <dir>/<scene>/day.jwp 与 <dir>/<scene>/night.jwp
+                scene ∈ sunny/cloudy/overcast/rain/storm/snow/fog/haze/night
+
+        config SMART_HOME_WALLPAPER_FPS
+            int "壁纸目标帧率"
+            default 30
+            range 1 30
+            depends on SMART_HOME_WALLPAPER_ENABLED
+            help
+                1024×600 全屏的目标帧率，默认 30。实测解码/带宽不足时可在
+                1~30 内下调，播放器会自动记账丢帧数。
+
+        config SMART_HOME_WALLPAPER_MAX_FRAME_KB
+            int "单帧 JPEG 上限 (KB)"
+            default 512
+            range 64 2048
+            depends on SMART_HOME_WALLPAPER_ENABLED
+            help
+                与转换脚本 make_wallpaper_jwp.py 的 --max-frame 必须一致；
+                转换脚本会在超限时报错，避免真机上才发现读不了。
+
+        config SMART_HOME_STANDBY_SELFTEST
+            bool "待机层隔离自检日志（每 5s 一条）"
+            default n
+            depends on SMART_HOME_STANDBY_ENABLED
+            help
+                打开后每 5 秒打印一条 [SELFTEST] 汇总：时间是否已授时、天气快照、
+                当前场景/昼夜、Wi-Fi、待机层可见性、壁纸解码帧数与平均耗时、
+                目标帧率。用于实机隔离验证单个模块，不必依赖主 UI 或天气服务。
+                量产固件应保持 n（避免 5s 一条日志干扰串口）。
+
+        config SMART_HOME_WALLPAPER_TEST_FORCE
+            bool "强制壁纸场景（隔离测试开关）"
+            default n
+            depends on SMART_HOME_STANDBY_ENABLED
+            help
+                打开后待机层忽略天气数据，直接使用下面指定的场景壁纸。
+                用于无网络 / 无 API Key / 关掉天气服务时，单独验证
+                "JWP 加载 + 场景切换 + 帧率"，与天气链路解耦。
+
+        config SMART_HOME_WALLPAPER_TEST_SCENE
+            string "强制使用的场景名"
+            default "sunny"
+            depends on SMART_HOME_WALLPAPER_TEST_FORCE
+            help
+                取值: sunny / cloudy / overcast / rain / storm / snow / fog / haze / night
+                （storm = 雷暴）。对应 <WALLPAPER_DIR>/<场景>/<day|night>.jwp。
+
+        config SMART_HOME_WALLPAPER_TEST_NIGHT
+            bool "强制使用 night 变体"
+            default n
+            depends on SMART_HOME_WALLPAPER_TEST_FORCE
+
+        choice SMART_HOME_WALLPAPER_DECODER
+            prompt "JPEG 解码后端"
+            default SMART_HOME_WALLPAPER_DECODER_HW
+            depends on SMART_HOME_WALLPAPER_ENABLED
+
+            config SMART_HOME_WALLPAPER_DECODER_HW
+                bool "硬件解码 (esp_driver_jpeg / P4 JPEG Codec)"
+                help
+                    ESP-IDF 内置 P4 硬件 JPEG 解码器。IDF 自测下限：
+                    1080p→RGB565 ≥40fps，1024×600 余量充足。
+                    ⚠️ 该驱动内部使用 2D-DMA(DMA2D)，而本工程历史上观察到
+                    DMA2D ISR 与 esp_hosted SDIO 存在冲突（见
+                    SMART_HOME_DMA2D_ENABLE 注释），必须实机与 Wi-Fi 并发验证。
+
+            config SMART_HOME_WALLPAPER_DECODER_SW
+                bool "软件解码 (esp_new_jpeg, 不占用 2D-DMA)"
+                help
+                    纯软件解码，作为与 Wi-Fi/SDIO 共存的安全回退与对照实验。
+                    1024×600 下的可持续帧率待实测。
+        endchoice
+
+    endmenu
+
+    ## ─── 天气服务（uapis.cn + SNTP）───
+    menu "天气服务"
+
+        config SMART_HOME_WEATHER_ENABLED
+            bool "启用天气服务 (SNTP + uapis.cn 天气)"
+            default y
+            depends on SMART_HOME_STANDBY_ENABLED
+            help
+                后台任务：等 Wi-Fi → SNTP 授时 → 拉取实况与当日日出日落 →
+                映射壁纸场景；失败按指数退避重试，不影响主 UI。
+                未配置 Key（wx_key）时只授时、不请求天气；
+                Wi-Fi 未启用时只做本地时间显示。
+
+        config SMART_HOME_WEATHER_KEY
+            string "uapis.cn API Key（Bearer；留空=只授时，勿在此填真实值）"
+            default ""
+            depends on SMART_HOME_WEATHER_ENABLED
+            help
+                认证方式：Authorization: Bearer <Key>（uapis.cn，见 ADR-020）。
+                ⚠️ 绝不把真实 Key 写进本文件（本文件入库，见 ADR-016）。
+                推荐做法：运行时写入 NVS 键 'wx_key'（storage API），
+                或用 idf.py menuconfig 只写入本地生成的 sdkconfig（已 gitignore）。
+                注意：配置了无效 Key 会收到 401（日志有提示），修正或清空即可。
+
+        config SMART_HOME_WEATHER_LOCATION
+            string "定位（可选，留空=按 IP 自动定位）"
+            default ""
+            depends on SMART_HOME_WEATHER_ENABLED
+            help
+                留空：uapis.cn 按设备来源 IP 自动定位（含省/市/区）。
+                或填 6 位 adcode（如 440300=深圳市），或城市名（如 深圳）。
+                推荐运行时写入 NVS 键 'wx_loc'。
+
+        config SMART_HOME_WEATHER_REFRESH_SEC
+            int "天气刷新周期 (秒)"
+            default 900
+            range 300 7200
+            depends on SMART_HOME_WEATHER_ENABLED
+            help
+                成功时的刷新周期；失败时按 60s→120s→...→900s 指数退避。
+
+    endmenu
+
+    ## ─── MQTT / Home Assistant 集成（阶段 5）───
+    menu "MQTT / Home Assistant 集成"
+
+        config SMART_HOME_MQTT_ENABLED
+            bool "启用 MQTT 客户端"
+            default n
+            help
+                连接 MQTT broker 并向 Home Assistant 发布 MQTT Discovery（自动发现）。
+                未配置 broker uri（NVS 'mqtt_uri' 或本项）时只打印日志、不启动。
+
+        config SMART_HOME_MQTT_BROKER_URI
+            string "默认 broker URI（如 mqtt://192.168.1.10:1883；留空=不启动）"
+            default ""
+            depends on SMART_HOME_MQTT_ENABLED
+            help
+                ⚠️ 绝不把真实 broker 地址/账号密码写进本文件（本文件入库，见 ADR-016）。
+                推荐运行时写入 NVS 键 'mqtt_uri' / 'mqtt_user' / 'mqtt_pass'
+                （storage_save_mqtt_cred），或用 idf.py menuconfig 只写入本地 sdkconfig。
+
+        config SMART_HOME_MQTT_USERNAME
+            string "默认 broker 用户名（可空）"
+            default ""
+            depends on SMART_HOME_MQTT_ENABLED
+
+        config SMART_HOME_MQTT_PASSWORD
+            string "默认 broker 密码（可空，勿在此填真实值）"
+            default ""
+            depends on SMART_HOME_MQTT_ENABLED
+
+        config SMART_HOME_MQTT_NODE_ID
+            string "节点 ID（主题前缀 smart_home/<node_id>）"
+            default "p4hub"
+            depends on SMART_HOME_MQTT_ENABLED
+
+        config SMART_HOME_MQTT_DEVICE_REPORT_ENABLED
+            bool "发布设备属性与 OTA 结果"
+            default y
+            depends on SMART_HOME_MQTT_ENABLED
+            help
+                连接后立即发布一次，之后按周期发布 retained JSON 到
+                smart_home/<node>/device；OTA 终态发布到
+                smart_home/<node>/ota/result。
+
+        config SMART_HOME_MQTT_DEVICE_REPORT_PERIOD_S
+            int "设备属性上报周期（秒）"
+            default 60
+            range 10 3600
+            depends on SMART_HOME_MQTT_ENABLED && SMART_HOME_MQTT_DEVICE_REPORT_ENABLED
+
+        config SMART_HOME_MQTT_KEEPALIVE_S
+            int "MQTT keepalive（秒）"
+            default 12
+            range 10 300
+            depends on SMART_HOME_MQTT_ENABLED
+            help
+                broker 在 1.5 × keepalive 收不到 PINGREQ 时判定断开并发布 LWT，
+                因此 availability 变 offline 的延迟 ≈ 1.5 × 本值。
+                30s → 约 45s（旧值，实测）；12s → 约 18s（下调后，待实测）。
+
+        config SMART_HOME_MQTT_ALLOW_CLOUD_CMD
+            bool "允许云端下发执行器指令"
+            default y
+            depends on SMART_HOME_MQTT_ENABLED
+            help
+                关闭后 MQTT 只上报、不接受命令。
+                开启时仍受本地优先仲裁约束：本地操作后 1s 内的云端指令被丢弃（ADR-004）。
+
+    endmenu
+
+endmenu

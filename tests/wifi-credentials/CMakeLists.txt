@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(wifi_credentials_test C)
+set(CMAKE_C_STANDARD 11)
+add_executable(test_wifi_credentials test_wifi_credentials.c)
+target_include_directories(test_wifi_credentials PRIVATE ../../firmware/p4-hub/main/bsp/wifi)
+enable_testing()
+add_test(NAME wifi_credentials COMMAND test_wifi_credentials)
